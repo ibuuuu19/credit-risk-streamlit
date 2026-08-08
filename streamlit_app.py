@@ -644,5 +644,9 @@ st.markdown("""
     Développé avec ❤️ en utilisant Spark ML & Streamlit
     <br>
     <span style="font-size: 0.7rem; opacity: 0.7;">🔒 Données traitées de manière confidentielle • Aucune donnée persistée</span>
+    <br>
+    <a href="https://ibuuuu19.github.io/credit-risk-streamlit/privacy/" target="_blank" style="font-size: 0.75rem; color: #6c757d;">
+        Politique de confidentialité
+    </a>
 </div>
 """, unsafe_allow_html=True)
