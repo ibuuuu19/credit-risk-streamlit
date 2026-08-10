@@ -1,10 +1,11 @@
 """
-CreditScore Pro v3.2 — Application Streamlit professionnelle
+CreditScore Pro v3.3 — Application Streamlit professionnelle
 =============================================================
 • Page Diagnostic : scoring de risque de crédit (Spark ML / Random Forest)
 • Page Dashboard  : historique persistant + KPIs + graphiques + export PDF
 
-v3.2 — Ajout de l'export PDF professionnel avec interprétations détaillées
+v3.3 — PDF : graphiques générés via matplotlib (fiable, sans binaire externe)
+             + suppression des emojis non supportés par les polices PDF
 """
 
 import json
@@ -32,7 +33,7 @@ from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
     PageBreak, Image
 )
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
 
 # --------------------------------------------------------------------
 # Constantes
@@ -317,8 +318,89 @@ def decision_depuis_proba(p):
     return "Défavorable"
 
 # --------------------------------------------------------------------
-# Génération du rapport PDF
+# Génération du rapport PDF (graphiques via matplotlib = fiable partout)
 # --------------------------------------------------------------------
+import matplotlib
+matplotlib.use("Agg")  # backend sans fenêtre, obligatoire sur serveur
+import matplotlib.pyplot as plt
+
+def _fig_to_png(fig):
+    """Convertit une figure matplotlib en buffer PNG."""
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    buf.seek(0)
+    return buf
+
+def generer_graphiques_pdf(df):
+    """Génère les graphiques du rapport avec matplotlib (aucun binaire externe)."""
+    graphiques = []
+    NAVY = "#12244A"
+    GRID = "#DCE3EF"
+    TXT = "#26324A"
+
+    # ---- 1. Donut des décisions ----
+    try:
+        counts = df.decision.value_counts()
+        fig, ax = plt.subplots(figsize=(7, 4))
+        cols = [COULEURS.get(c, "#888888") for c in counts.index]
+        wedges, texts, autotexts = ax.pie(
+            counts.values, labels=counts.index, colors=cols,
+            autopct="%1.0f%%", startangle=90,
+            wedgeprops=dict(width=0.42, edgecolor="white", linewidth=2),
+            textprops=dict(fontsize=10, color=TXT),
+        )
+        for t in autotexts:
+            t.set_color("white")
+            t.set_fontweight("bold")
+        ax.set_title("Répartition des décisions de crédit",
+                     fontsize=12, fontweight="bold", color=NAVY)
+        graphiques.append((_fig_to_png(fig), "Répartition des décisions de crédit"))
+    except Exception:
+        pass
+
+    # ---- 2. Distribution du risque ----
+    try:
+        bins = pd.cut(df["proba_pct"], bins=[0, 20, 40, 60, 80, 100], include_lowest=True)
+        hist = bins.value_counts().sort_index()
+        labels = [f"{int(i.left)}-{int(i.right)}%" for i in hist.index]
+        cols = [couleur_risque(i.left) for i in hist.index]
+        fig, ax = plt.subplots(figsize=(7, 4))
+        ax.bar(labels, hist.values, color=cols, edgecolor="white", linewidth=1.5)
+        ax.set_ylabel("Nombre d'analyses", fontsize=10, color=TXT)
+        ax.set_title("Distribution des probabilités de défaut",
+                     fontsize=12, fontweight="bold", color=NAVY)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.spines["left"].set_color(GRID)
+        ax.spines["bottom"].set_color(GRID)
+        ax.tick_params(colors=TXT)
+        graphiques.append((_fig_to_png(fig), "Distribution des probabilités de défaut"))
+    except Exception:
+        pass
+
+    # ---- 3. Risque moyen par objet de prêt ----
+    try:
+        par_objet = df.groupby("objet")["proba_pct"].mean().sort_values()
+        fig, ax = plt.subplots(figsize=(7, 4))
+        cols = [couleur_risque(v) for v in par_objet.values]
+        ax.barh(par_objet.index, par_objet.values, color=cols,
+                edgecolor="white", linewidth=1.5)
+        ax.set_xlim(0, 100)
+        ax.set_xlabel("Risque moyen (%)", fontsize=10, color=TXT)
+        ax.set_title("Risque moyen par objet de prêt",
+                     fontsize=12, fontweight="bold", color=NAVY)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.spines["left"].set_color(GRID)
+        ax.spines["bottom"].set_color(GRID)
+        ax.tick_params(colors=TXT)
+        graphiques.append((_fig_to_png(fig), "Risque moyen par objet de prêt"))
+    except Exception:
+        pass
+
+    return graphiques
+
 def generer_rapport_pdf(df, inclure_graphiques=True):
     """Génère un rapport PDF professionnel avec toutes les analyses."""
     buffer = io.BytesIO()
@@ -327,9 +409,9 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
         rightMargin=2*cm, leftMargin=2*cm,
         topMargin=2*cm, bottomMargin=2*cm,
     )
-    
+
     styles = getSampleStyleSheet()
-    
+
     styles.add(ParagraphStyle(
         name='TitrePrincipal', parent=styles['Heading1'],
         fontSize=24, textColor=colors.HexColor('#12244A'),
@@ -351,29 +433,37 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
         borderColor=colors.HexColor('#C9DCF5'),
         borderWidth=1, borderPadding=8, spaceAfter=10,
     ))
-    
+    styles.add(ParagraphStyle(
+        name='Caption', parent=styles['Normal'],
+        fontSize=9, alignment=TA_CENTER, textColor=colors.grey,
+    ))
+    styles.add(ParagraphStyle(
+        name='Note', parent=styles['Normal'],
+        fontSize=8, textColor=colors.grey,
+    ))
+
     story = []
-    
+
     # ============ PAGE DE COUVERTURE ============
     story.append(Spacer(1, 3*cm))
     story.append(Paragraph("CreditScore Pro", styles['TitrePrincipal']))
     story.append(Paragraph("Rapport d'Analyse de Risque de Crédit", styles['Heading2']))
     story.append(Spacer(1, 1*cm))
-    
+
     total = len(df)
     taux_fav = (df.decision == "Favorable").mean() * 100
     proba_moy = df.proba_pct.mean()
     montant_moy = df.montant.mean()
-    
+
     donnees_couverture = [
         ['Indicateur', 'Valeur'],
-        ['Nombre d\'analyses', str(total)],
-        ['Taux d\'avis favorables', f'{taux_fav:.1f}%'],
+        ["Nombre d'analyses", str(total)],
+        ["Taux d'avis favorables", f'{taux_fav:.1f}%'],
         ['Probabilité de défaut moyenne', f'{proba_moy:.1f}%'],
         ['Montant moyen demandé', f'{montant_moy:,.0f} $'],
         ['Date du rapport', datetime.now().strftime('%d/%m/%Y')],
     ]
-    
+
     table_couverture = Table(donnees_couverture, colWidths=[8*cm, 6*cm])
     table_couverture.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#12244A')),
@@ -382,14 +472,13 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('FONTSIZE', (0, 0), (-1, 0), 11),
         ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
         ('GRID', (0, 0), (-1, -1), 1, colors.grey),
         ('FONTSIZE', (0, 1), (-1, -1), 10),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8FAFD')]),
     ]))
     story.append(table_couverture)
     story.append(PageBreak())
-    
+
     # ============ RÉSUMÉ EXÉCUTIF ============
     story.append(Paragraph("Résumé Exécutif", styles['SousTitre']))
     resume = (
@@ -401,57 +490,48 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
     )
     story.append(Paragraph(resume, styles['CorpsTexte']))
     story.append(Spacer(1, 0.5*cm))
-    
+
     if taux_fav >= 70:
-        interpretation = "✅ Le portefeuille analysé présente un profil très favorable. La majorité des dossiers sont solvables avec un risque maîtrisé."
+        interpretation = ("Le portefeuille analysé présente un profil très favorable : "
+                          "la majorité des dossiers sont solvables avec un risque maîtrisé.")
     elif taux_fav >= 50:
-        interpretation = "⚠️ Le portefeuille est globalement acceptable mais nécessite une vigilance sur certains segments."
+        interpretation = ("Le portefeuille est globalement acceptable mais nécessite "
+                          "une vigilance sur certains segments.")
     else:
-        interpretation = "🔴 La majorité des dossiers présentent un risque élevé. Un renforcement des critères de sélection est recommandé."
-    
+        interpretation = ("La majorité des dossiers présentent un risque élevé. "
+                          "Un renforcement des critères de sélection est recommandé.")
+
     story.append(Paragraph(interpretation, styles['InsightBox']))
     story.append(Spacer(1, 0.5*cm))
-    
-    # Graphiques (si kaleido disponible)
+
+    # ============ GRAPHIQUES (matplotlib) ============
     if inclure_graphiques:
-        try:
-            import plotly.io as pio
-            
+        graphiques = generer_graphiques_pdf(df)
+        if graphiques:
             story.append(Paragraph("Visualisations Clés", styles['SousTitre']))
-            
-            counts = df.decision.value_counts()
-            fig_donut = go.Figure(go.Pie(
-                labels=list(counts.index), values=list(counts.values), hole=0.6,
-                marker=dict(colors=['#0FA36B', '#E8A13A', '#D64545'][:len(counts)]),
-            ))
-            
-            img_bytes = pio.to_image(fig_donut, format='png', width=500, height=350)
-            img = Image(io.BytesIO(img_bytes), width=12*cm, height=8.4*cm)
-            story.append(img)
-            story.append(Spacer(1, 0.3*cm))
+            for img_buf, caption in graphiques:
+                img = Image(img_buf, width=15*cm, height=15*cm*4/7)
+                story.append(img)
+                story.append(Spacer(1, 0.2*cm))
+                story.append(Paragraph(f"<i>{caption}</i>", styles['Caption']))
+                story.append(Spacer(1, 0.5*cm))
+        else:
             story.append(Paragraph(
-                "<i>Répartition des décisions de crédit</i>",
-                ParagraphStyle('Caption', parent=styles['Normal'],
-                              fontSize=9, alignment=TA_CENTER)
-            ))
-            story.append(Spacer(1, 0.5*cm))
-        except Exception:
-            story.append(Paragraph(
-                "⚠️ Graphiques non inclus (kaleido non disponible)",
+                "Graphiques non inclus (matplotlib non disponible).",
                 styles['CorpsTexte']
             ))
-    
+
     # ============ TABLEAU DÉTAILLÉ ============
     story.append(PageBreak())
     story.append(Paragraph("Détail des Analyses", styles['SousTitre']))
-    
+
     df_table = df[[
         'date', 'age', 'revenu', 'montant', 'objet',
         'logement', 'proba_pct', 'decision'
     ]].copy()
     df_table['date'] = df_table['date'].dt.strftime('%d/%m/%y')
     df_table = df_table.sort_values('date', ascending=False).head(20)
-    
+
     donnees_table = [['Date', 'Âge', 'Revenu', 'Prêt', 'Objet', 'Risque', 'Décision']]
     for _, row in df_table.iterrows():
         donnees_table.append([
@@ -463,7 +543,7 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
             f"{row['proba_pct']:.0f}%",
             row['decision'],
         ])
-    
+
     table_detail = Table(
         donnees_table,
         colWidths=[2.2*cm, 1.5*cm, 2.2*cm, 2.2*cm, 2.8*cm, 1.8*cm, 2.5*cm]
@@ -480,46 +560,41 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8FAFD')]),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
     ]))
-    
+
     for i, row in enumerate(donnees_table[1:], start=1):
         decision = row[-1]
         if decision == 'Favorable':
-            table_detail.setStyle(TableStyle([
-                ('BACKGROUND', (-1, i), (-1, i), colors.HexColor('#E6F7F0')),
-                ('TEXTCOLOR', (-1, i), (-1, i), colors.HexColor('#0B6B47')),
-            ]))
+            bg, fg = '#E6F7F0', '#0B6B47'
         elif decision == 'Modéré':
-            table_detail.setStyle(TableStyle([
-                ('BACKGROUND', (-1, i), (-1, i), colors.HexColor('#FDF4E5')),
-                ('TEXTCOLOR', (-1, i), (-1, i), colors.HexColor('#8A5A14')),
-            ]))
+            bg, fg = '#FDF4E5', '#8A5A14'
         else:
-            table_detail.setStyle(TableStyle([
-                ('BACKGROUND', (-1, i), (-1, i), colors.HexColor('#FBECEC')),
-                ('TEXTCOLOR', (-1, i), (-1, i), colors.HexColor('#8C2B2B')),
-            ]))
-    
+            bg, fg = '#FBECEC', '#8C2B2B'
+        table_detail.setStyle(TableStyle([
+            ('BACKGROUND', (-1, i), (-1, i), colors.HexColor(bg)),
+            ('TEXTCOLOR', (-1, i), (-1, i), colors.HexColor(fg)),
+        ]))
+
     story.append(table_detail)
-    
+
     if len(df) > 20:
         story.append(Spacer(1, 0.3*cm))
         story.append(Paragraph(
             f"<i>Tableau limité aux 20 analyses les plus récentes sur {total} au total.</i>",
-            ParagraphStyle('Note', parent=styles['Normal'], fontSize=8, textColor=colors.grey)
+            styles['Note']
         ))
-    
+
     # ============ ANALYSES DÉTAILLÉES ============
     story.append(PageBreak())
     story.append(Paragraph("Analyses Détaillées & Interprétations", styles['SousTitre']))
-    
+
     df_detail = df.sort_values('date', ascending=False).head(5)
-    
+
     for idx, (_, row) in enumerate(df_detail.iterrows(), 1):
         story.append(Paragraph(
             f"Analyse #{idx} — {row['date'].strftime('%d/%m/%Y %H:%M')}",
             styles['Heading3']
         ))
-        
+
         carac = (
             f"<b>Profil :</b> {row['age']} ans, revenu {row['revenu']:,} $, "
             f"ancienneté {row['anciennete']} ans<br/>"
@@ -528,13 +603,12 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
             f"<b>Endettement :</b> {row['dti']*100:.1f}%"
         )
         story.append(Paragraph(carac, styles['CorpsTexte']))
-        
+
         decision = row['decision']
         proba = row['proba_pct']
-        
+
         if decision == 'Favorable':
             couleur = '#0FA36B'
-            emoji = '✅'
             interpretation_text = (
                 f"Le dossier présente un profil favorable avec une probabilité de défaut "
                 f"de seulement {proba:.1f}%. Les indicateurs financiers sont solides et "
@@ -543,7 +617,6 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
             )
         elif decision == 'Modéré':
             couleur = '#E8A13A'
-            emoji = '⚠️'
             interpretation_text = (
                 f"Le dossier présente un risque modéré (probabilité de défaut : {proba:.1f}%). "
                 f"Certains indicateurs appellent à la prudence. Un examen complémentaire et "
@@ -551,13 +624,12 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
             )
         else:
             couleur = '#D64545'
-            emoji = '🔴'
             interpretation_text = (
                 f"Le dossier présente un risque élevé (probabilité de défaut : {proba:.1f}%). "
                 f"Plusieurs facteurs de risque sont identifiés. Le refus ou des conditions "
                 f"très restrictives (garanties substantielles, taux majoré) sont recommandés."
             )
-        
+
         style_resultat = ParagraphStyle(
             f'Resultat{idx}', parent=styles['Normal'],
             fontSize=10, leading=13,
@@ -565,26 +637,25 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
             borderColor=colors.HexColor(couleur),
             borderWidth=2, borderPadding=10, spaceAfter=12,
         )
-        
+
         story.append(Paragraph(
-            f"{emoji} <b>Décision : {decision}</b> (Score : {row['score']}/100)<br/><br/>"
+            f"<b>Décision : {decision}</b> (Score : {row['score']}/100)<br/><br/>"
             f"{interpretation_text}",
             style_resultat
         ))
-        
         story.append(Spacer(1, 0.3*cm))
-    
+
     if len(df) > 5:
         story.append(Paragraph(
             f"<i>Seules les 5 analyses les plus récentes sont détaillées. "
             f"Le rapport complet comprend {total} analyses.</i>",
-            ParagraphStyle('Note', parent=styles['Normal'], fontSize=8, textColor=colors.grey)
+            styles['Note']
         ))
-    
+
     # ============ RECOMMANDATIONS GLOBALES ============
     story.append(PageBreak())
     story.append(Paragraph("Recommandations Globales", styles['SousTitre']))
-    
+
     if taux_fav >= 70:
         recommandations = """
         <b>1. Maintenir les critères actuels</b><br/>
@@ -614,9 +685,9 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
         <b>4. Formation des équipes</b><br/>
         Sensibiliser les conseillers aux profils à risque.
         """
-    
+
     story.append(Paragraph(recommandations, styles['CorpsTexte']))
-    
+
     story.append(Spacer(1, 1*cm))
     story.append(Paragraph(
         f"<i>Rapport généré le {datetime.now().strftime('%d/%m/%Y à %H:%M')} — "
@@ -624,7 +695,7 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
         ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8,
                       textColor=colors.grey, alignment=TA_CENTER)
     ))
-    
+
     doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
@@ -687,7 +758,7 @@ with st.sidebar:
     - Historique : emploi & crédit
     - Antécédents de défaut
     """)
-    st.caption(f"v3.2 • Random Forest • {len(st.session_state.historique)} analyse(s)")
+    st.caption(f"v3.3 • Random Forest • {len(st.session_state.historique)} analyse(s)")
 
 # ====================================================================
 # PAGE 1 — DIAGNOSTIC
@@ -1106,11 +1177,11 @@ def render_dashboard():
 
     # ---------- Boutons d'export ----------
     cexp, cpdf, cdel, _ = st.columns([1, 1, 1, 2])
-    
+
     csv = df.to_csv(index=False).encode("utf-8")
     cexp.download_button("⬇️ Exporter CSV", data=csv,
                          file_name="historique_analyses.csv", mime="text/csv")
-    
+
     if cpdf.button("📄 Générer PDF", use_container_width=True):
         with st.spinner("Génération du rapport PDF..."):
             try:
@@ -1125,7 +1196,7 @@ def render_dashboard():
                 st.success("✅ Rapport PDF généré avec succès !")
             except Exception as e:
                 st.error(f"❌ Erreur lors de la génération : {e}")
-    
+
     with cdel:
         if st.session_state.get("confirm_clear"):
             ca, cb = st.columns(2)

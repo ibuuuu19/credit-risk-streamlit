@@ -3,4 +3,3 @@ pyspark==4.1.0
 plotly
 pandas
 reportlab>=4.0.0
-kaleido>=0.2.1
