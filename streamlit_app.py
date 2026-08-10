@@ -1,14 +1,16 @@
 """
-CreditScore Pro v3.0 — Application Streamlit professionnelle
+CreditScore Pro v3.1 — Application Streamlit professionnelle
 =============================================================
-• Page Diagnostic  : scoring de risque de crédit (Spark ML / Random Forest)
-• Page Dashboard   : historique persistant des analyses + KPIs + graphiques
-                     Plotly + explications interprétatives automatiques
+• Page Diagnostic : scoring de risque de crédit (Spark ML / Random Forest)
+• Page Dashboard  : historique persistant + KPIs + graphiques + explications
 
-Corrections apportées :
-• `import straeamlit` -> `import streamlit` (faute de frappe)
-• Balises HTML non fermées corrigées
-• Historique persisté en JSON (survit aux redémarrages)
+v3.1 — Corrections des graphiques :
+• marker Plotly défini UNE seule fois (plus de conflit marker_color/marker)
+• suppression de `cornerradius` (incompatible avec d'anciennes versions de plotly)
+• histogramme à binning manuel robuste (value_counts sur pd.cut)
+• corrélation protégée contre NaN (cas 1 seule analyse)
+• chaque graphique dans un try/except : plus de crash global
+• div HTML auto-fermées (plus de balises ouvertes)
 """
 
 import json
@@ -28,19 +30,24 @@ from pyspark.sql.types import (
 from pyspark.ml import PipelineModel
 
 # --------------------------------------------------------------------
-# Constantes & configuration
+# Constantes
 # --------------------------------------------------------------------
 MODEL_PATH   = "credit_risk_pipeline_model"
 HISTORY_FILE = "historique_analyses.json"
 
-SEUIL_MODERE = 0.20   # en dessous : risque faible
-SEUIL_ELEVE  = 0.40   # au dessus  : risque élevé
+SEUIL_MODERE = 0.20
+SEUIL_ELEVE  = 0.40
 
 COULEURS = {
     "Favorable":   "#0FA36B",
     "Modéré":      "#E8A13A",
     "Défavorable": "#D64545",
 }
+
+def couleur_risque(v):
+    if v < 20:  return COULEURS["Favorable"]
+    if v < 40:  return COULEURS["Modéré"]
+    return COULEURS["Défavorable"]
 
 st.set_page_config(
     page_title="CreditScore Pro — Risque de Crédit",
@@ -50,32 +57,21 @@ st.set_page_config(
 )
 
 # --------------------------------------------------------------------
-# Design system — CSS premium
+# Design system CSS
 # --------------------------------------------------------------------
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap');
 
-/* ============ BASE ============ */
-html, body, .stApp {
-    background: #F4F6FB;
-    font-family: 'Manrope', sans-serif;
-    color: #26324A;
-}
+html, body, .stApp { background: #F4F6FB; font-family: 'Manrope', sans-serif; color: #26324A; }
 #MainMenu {visibility: hidden;}
 footer    {visibility: hidden;}
 .block-container { padding-top: 1.5rem; max-width: 1220px; }
-
 h1,h2,h3,h4 { font-family: 'Sora', sans-serif !important; color: #12244A !important; }
 
-/* ============ SIDEBAR ============ */
-section[data-testid="stSidebar"] {
-    background: #FFFFFF;
-    border-right: 1px solid #E5EAF3;
-}
-section[data-testid="stSidebar"] .stRadio > div {
-    display: flex; flex-direction: column; gap: 8px;
-}
+/* Sidebar */
+section[data-testid="stSidebar"] { background: #FFFFFF; border-right: 1px solid #E5EAF3; }
+section[data-testid="stSidebar"] .stRadio > div { display: flex; flex-direction: column; gap: 8px; }
 section[data-testid="stSidebar"] .stRadio label {
     display: flex; align-items: center; gap: 10px;
     padding: 12px 16px; border-radius: 12px;
@@ -83,9 +79,7 @@ section[data-testid="stSidebar"] .stRadio label {
     cursor: pointer; font-weight: 600; font-size: .92rem;
     transition: all .25s ease; margin: 0;
 }
-section[data-testid="stSidebar"] .stRadio label:hover {
-    border-color: #1B3B6F; transform: translateX(3px);
-}
+section[data-testid="stSidebar"] .stRadio label:hover { border-color: #1B3B6F; transform: translateX(3px); }
 section[data-testid="stSidebar"] .stRadio label:has(input:checked) {
     background: linear-gradient(135deg, #12244A, #1B3B6F);
     color: #fff; border-color: transparent;
@@ -93,7 +87,7 @@ section[data-testid="stSidebar"] .stRadio label:has(input:checked) {
 }
 section[data-testid="stSidebar"] .stRadio input[type="radio"] { display: none; }
 
-/* ============ HERO ============ */
+/* Hero */
 .hero {
     background: linear-gradient(135deg, #0B1F3A 0%, #1B3B6F 55%, #27498B 100%);
     border-radius: 20px; padding: 2.2rem 2.4rem;
@@ -109,15 +103,9 @@ section[data-testid="stSidebar"] .stRadio input[type="radio"] { display: none; }
       radial-gradient(circle at 85% 20%, rgba(212,175,55,.18) 0%, transparent 45%),
       radial-gradient(circle at 10% 90%, rgba(255,255,255,.08) 0%, transparent 40%);
 }
-.hero h1 {
-    color: #fff !important; font-size: 2.3rem; margin: 0;
-    letter-spacing: -1px; position: relative;
-}
+.hero h1 { color: #fff !important; font-size: 2.3rem; margin: 0; letter-spacing: -1px; position: relative; }
 .hero h1 span { color: #D4AF37; }
-.hero p {
-    color: rgba(255,255,255,.78); margin: .4rem 0 0;
-    font-size: .98rem; position: relative;
-}
+.hero p { color: rgba(255,255,255,.78); margin: .4rem 0 0; font-size: .98rem; position: relative; }
 .hero-badges { display: flex; gap: 8px; flex-wrap: wrap; position: relative; }
 .hbadge {
     background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.18);
@@ -126,20 +114,18 @@ section[data-testid="stSidebar"] .stRadio input[type="radio"] { display: none; }
 }
 .hbadge.gold { background: rgba(212,175,55,.22); border-color: rgba(212,175,55,.5); color: #F0D488; }
 
-/* ============ KPI CARDS ============ */
+/* KPI */
 .kpi {
     background: #fff; border: 1px solid #E5EAF3; border-radius: 16px;
     padding: 1.1rem 1.2rem; display: flex; gap: 14px; align-items: center;
-    box-shadow: 0 2px 10px rgba(18,36,74,.05);
-    border-left: 4px solid #1B3B6F;
-    transition: all .3s ease; margin-bottom: 14px;
-    animation: fadeUp .5s ease both;
+    box-shadow: 0 2px 10px rgba(18,36,74,.05); border-left: 4px solid #1B3B6F;
+    transition: all .3s ease; margin-bottom: 14px; animation: fadeUp .5s ease both;
 }
 .kpi:hover { transform: translateY(-3px); box-shadow: 0 10px 26px rgba(18,36,74,.12); }
 .kpi-icon {
     width: 46px; height: 46px; border-radius: 12px; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center; font-size: 1.35rem;
-    background: #EEF3FB;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.35rem; background: #EEF3FB;
 }
 .kpi-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .6px; color: #7A8699; font-weight: 700; }
 .kpi-value { font-family: 'Sora'; font-size: 1.55rem; font-weight: 800; color: #12244A; line-height: 1.2; }
@@ -150,7 +136,7 @@ section[data-testid="stSidebar"] .stRadio input[type="radio"] { display: none; }
 .tone-gold  .kpi-icon { background: #FAF3DF; } .tone-gold  { border-left-color: #C9A227; }
 .tone-blue  .kpi-icon { background: #EAF1FB; } .tone-blue  { border-left-color: #2E6DB4; }
 
-/* ============ SECTIONS & INSIGHTS ============ */
+/* Sections & titres de graphiques */
 .section-title { display: flex; gap: 12px; align-items: center; margin: 2rem 0 1rem; }
 .section-title .st-icon {
     width: 40px; height: 40px; border-radius: 12px; font-size: 1.2rem;
@@ -161,18 +147,11 @@ section[data-testid="stSidebar"] .stRadio input[type="radio"] { display: none; }
 .section-title h3 { margin: 0; font-size: 1.15rem; }
 .section-title p  { margin: 2px 0 0; font-size: .82rem; color: #7A8699; }
 
-.chart-head {
-    background: #fff; border: 1px solid #E5EAF3; border-bottom: none;
-    border-radius: 16px 16px 0 0; padding: 1rem 1.2rem .6rem;
-}
-.chart-head h4 { margin: 0; font-size: .95rem; }
-.chart-head p  { margin: 2px 0 0; font-size: .78rem; color: #7A8699; }
-.chart-body {
-    background: #fff; border: 1px solid #E5EAF3; border-top: none;
-    border-radius: 0 0 16px 16px; padding: .5rem .8rem 1rem;
-    margin-bottom: 14px;
-}
+.chart-head { margin: 1.4rem 0 .5rem; }
+.chart-head h4 { margin: 0; font-size: .98rem; }
+.chart-head p  { margin: 2px 0 0; font-size: .8rem; color: #7A8699; }
 
+/* Insights */
 .insight {
     display: flex; gap: 12px; align-items: flex-start;
     border-radius: 14px; padding: 14px 16px; margin: 10px 0 18px;
@@ -185,7 +164,7 @@ section[data-testid="stSidebar"] .stRadio input[type="radio"] { display: none; }
 .insight-warning { background: #FDF4E5; border-color: #F3DDB4; color: #8A5A14; }
 .insight-danger  { background: #FBECEC; border-color: #F2C9C9; color: #8C2B2B; }
 
-/* ============ RÉSULTAT DIAGNOSTIC ============ */
+/* Résultat diagnostic */
 .result-card {
     border-radius: 18px; text-align: center; padding: 2rem 1.5rem;
     color: #fff; margin: 1.2rem 0; position: relative; overflow: hidden;
@@ -206,20 +185,15 @@ section[data-testid="stSidebar"] .stRadio input[type="radio"] { display: none; }
     padding: 6px 18px; border-radius: 30px; font-size: .85rem; margin-top: .6rem;
 }
 
-/* ============ WIDGETS ============ */
+/* Widgets */
 .stButton > button {
     background: linear-gradient(135deg, #12244A, #1B3B6F) !important;
     color: #fff !important; font-weight: 700 !important;
     border: none !important; border-radius: 12px !important;
-    padding: .7rem 1.5rem !important;
-    transition: all .3s ease !important;
+    padding: .7rem 1.5rem !important; transition: all .3s ease !important;
     box-shadow: 0 6px 18px rgba(18,36,74,.25) !important;
 }
-.stButton > button:hover {
-    transform: translateY(-2px) !important;
-    box-shadow: 0 10px 26px rgba(18,36,74,.4) !important;
-}
-.stButton > button[kind="secondary"] { background: #fff !important; }
+.stButton > button:hover { transform: translateY(-2px) !important; box-shadow: 0 10px 26px rgba(18,36,74,.4) !important; }
 
 div[data-testid="stMetric"] {
     background: #fff; border: 1px solid #E5EAF3; border-radius: 14px;
@@ -231,11 +205,7 @@ div[data-testid="stMetric"] div[data-testid="stMetricValue"] { color: #12244A !i
 .stNumberInput input, .stSelectbox select {
     border-radius: 10px !important; border: 1.5px solid #DCE3EF !important;
 }
-.stNumberInput input:focus, .stSelectbox select:focus {
-    border-color: #1B3B6F !important; box-shadow: 0 0 0 3px rgba(27,59,111,.12) !important;
-}
 
-/* ============ DIVERS ============ */
 .empty-state {
     background: #fff; border: 2px dashed #C9D4E6; border-radius: 20px;
     text-align: center; padding: 4rem 2rem; color: #7A8699;
@@ -257,13 +227,10 @@ div[data-testid="stMetric"] div[data-testid="stMetricValue"] { color: #12244A !i
 """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------
-# Helpers HTML
+# Helpers HTML (divs toujours fermées !)
 # --------------------------------------------------------------------
 def hero(titre, sous, badges):
-    b = "".join(
-        f'<span class="hbadge{" gold" if g else ""}>{t}</span>'
-        for t, g in badges
-    )
+    b = "".join(f'<span class="hbadge{" gold" if g else ""}">{t}</span>' for t, g in badges)
     st.markdown(f"""
     <div class="hero">
         <div><h1>🏦 CreditScore <span>Pro</span></h1><p>{sous}</p></div>
@@ -288,13 +255,9 @@ def section_title(icon, titre, sous=None):
     s += "</div></div>"
     st.markdown(s, unsafe_allow_html=True)
 
-def chart_head(icon, titre, sous):
-    st.markdown(f"""
-    <div class="chart-head"><h4>{icon} {titre}</h4><p>{sous}</p></div>
-    <div class="chart-body">""", unsafe_allow_html=True)
-
-def chart_foot():
-    st.markdown("</div>", unsafe_allow_html=True)
+def chart_title(icon, titre, sous):
+    st.markdown(f'<div class="chart-head"><h4>{icon} {titre}</h4><p>{sous}</p></div>',
+                unsafe_allow_html=True)
 
 def insight_box(icon, titre, texte, tone="info"):
     st.markdown(f"""
@@ -303,8 +266,26 @@ def insight_box(icon, titre, texte, tone="info"):
         <div><strong>{titre}</strong> — {texte}</div>
     </div>""", unsafe_allow_html=True)
 
+def style_fig(fig, height=300, legend=False):
+    fig.update_layout(
+        height=height,
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Manrope, sans-serif", color="#26324A"),
+        margin=dict(l=10, r=10, t=10, b=10),
+        showlegend=legend,
+    )
+    return fig
+
+def afficher_fig(fig):
+    """Affichage sécurisé : un graphique cassé ne tue plus la page."""
+    try:
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    except Exception as e:
+        st.warning(f"⚠️ Graphique indisponible ({type(e).__name__}) : {e}")
+
 # --------------------------------------------------------------------
-# Historique des analyses (persistance JSON)
+# Historique (persistance JSON)
 # --------------------------------------------------------------------
 def load_history():
     try:
@@ -326,8 +307,8 @@ if "historique" not in st.session_state:
     st.session_state.historique = load_history()
 
 def decision_depuis_proba(p):
-    if p < SEUIL_MODERE:  return "Favorable"
-    if p < SEUIL_ELEVE:   return "Modéré"
+    if p < SEUIL_MODERE: return "Favorable"
+    if p < SEUIL_ELEVE:  return "Modéré"
     return "Défavorable"
 
 # --------------------------------------------------------------------
@@ -365,11 +346,11 @@ spark = get_spark()
 model = load_model_safe(spark)
 
 # --------------------------------------------------------------------
-# Sidebar : navigation + infos
+# Sidebar
 # --------------------------------------------------------------------
 with st.sidebar:
     st.markdown("## 🏦 CreditScore Pro")
-    page = st.sidebar.radio(
+    page = st.radio(
         "Navigation",
         ["diagnostic", "dashboard"],
         format_func=lambda p: "🏠  Diagnostic" if p == "diagnostic" else "📊  Dashboard analytique",
@@ -388,24 +369,20 @@ with st.sidebar:
     - Historique : emploi & crédit
     - Antécédents de défaut
     """)
-    st.caption(f"v3.0 • Random Forest • {len(st.session_state.historique)} analyse(s) stockée(s)")
+    st.caption(f"v3.1 • Random Forest • {len(st.session_state.historique)} analyse(s)")
 
 # ====================================================================
 # PAGE 1 — DIAGNOSTIC
 # ====================================================================
 def render_diagnostic():
-    hero(
-        "CreditScore Pro",
-        "Évaluation intelligente du risque de crédit — Spark ML",
-        [("🔒 Analyse sécurisée", False), ("⚡ Instantané", False), ("🏆 AUC 0.92", True)],
-    )
+    hero("CreditScore Pro", "Évaluation intelligente du risque de crédit — Spark ML",
+         [("🔒 Analyse sécurisée", False), ("⚡ Instantané", False), ("🏆 AUC 0.92", True)])
 
     if model is None:
         st.error(f"""
         ❌ **Modèle introuvable** (`{MODEL_PATH}`)
 
-        Vérifiez que le pipeline a bien été sauvegardé à la racine de l'app
-        (`ml_save()` côté R / `PipelineModel.write()` côté Python).
+        Vérifiez que le pipeline a bien été sauvegardé à la racine de l'app.
         Le **Dashboard** reste consultable.
         """)
         return
@@ -413,11 +390,11 @@ def render_diagnostic():
     col_left, col_right = st.columns([2, 1], gap="large")
 
     with col_left:
-        section_title("📋", "Profil du demandeur", "Renseignez les informations du dossier de crédit")
+        section_title("📋", "Profil du demandeur", "Renseignez les informations du dossier")
 
         r1c1, r1c2, r1c3 = st.columns(3)
         with r1c1:
-            age = st.number_input("Âge", 18, 100, 35, help="Âge du demandeur")
+            age = st.number_input("Âge", 18, 100, 35)
             revenu = st.number_input("Revenu annuel ($)", 0, 10_000_000, 55_000, step=1000)
         with r1c2:
             emp_length = st.number_input("Ancienneté pro (années)", 0.0, 60.0, 5.0, step=0.5)
@@ -437,7 +414,7 @@ def render_diagnostic():
             default = st.selectbox("Défaut passé ?", ["N", "Y"])
 
     with col_right:
-        section_title("📊", "Indicateurs calculés", "Ratios et points de vigilance automatiques")
+        section_title("📊", "Indicateurs calculés", "Ratios et vigilance automatiques")
 
         dti = (loan_amnt / revenu) if revenu > 0 else 0.0
         niveau_dti = "Élevé" if dti > 0.35 else "Modéré" if dti > 0.20 else "Faible"
@@ -445,10 +422,10 @@ def render_diagnostic():
         kpi_card("📈", "Taux d'endettement", f"{dti:.1%}", niveau_dti, tone_dti)
 
         alertes = []
-        if age < 25:            alertes.append("Âge inférieur à 25 ans")
-        if emp_length < 2:      alertes.append("Ancienneté professionnelle < 2 ans")
-        if dti > 0.35:          alertes.append("Endettement élevé (> 35 %)")
-        if default == "Y":      alertes.append("Antécédent de défaut de paiement")
+        if age < 25:       alertes.append("Âge inférieur à 25 ans")
+        if emp_length < 2: alertes.append("Ancienneté professionnelle < 2 ans")
+        if dti > 0.35:     alertes.append("Endettement élevé (> 35 %)")
+        if default == "Y": alertes.append("Antécédent de défaut de paiement")
 
         if alertes:
             for a in alertes:
@@ -477,7 +454,6 @@ def render_diagnostic():
         decision = decision_depuis_proba(proba_defaut)
         couleur = COULEURS[decision]
 
-        # ---- Enregistrement dans l'historique ----
         record = {
             "id": str(uuid.uuid4())[:8],
             "horodatage": datetime.now().isoformat(),
@@ -491,9 +467,8 @@ def render_diagnostic():
         }
         st.session_state.historique.append(record)
         save_history(st.session_state.historique)
-        st.toast("✅ Analyse enregistrée — retrouvez-la dans le Dashboard", icon="📊")
+        st.toast("✅ Analyse enregistrée dans le Dashboard", icon="📊")
 
-        # ---- Résultats ----
         st.markdown("---")
         section_title("📊", "Résultats de l'analyse", "Score, niveau de risque et recommandations")
 
@@ -518,59 +493,59 @@ def render_diagnostic():
             <div class="result-detail">{det}</div>
         </div>""", unsafe_allow_html=True)
 
-        # ---- Jauge + facteurs ----
         g1, g2 = st.columns([1, 2], gap="large")
 
         with g1:
-            chart_head("🎯", "Jauge de risque", "Positionnement du dossier sur l'échelle de risque")
-            fig_gauge = go.Figure(go.Indicator(
-                mode="gauge+number",
-                value=round(proba_defaut * 100, 1),
-                number=dict(suffix="%", font=dict(size=40, family="Sora", color=couleur)),
-                gauge=dict(
-                    axis=dict(range=[0, 100]),
-                    bar=dict(color=couleur, thickness=0.55),
-                    bgcolor="rgba(18,36,74,0.06)",
-                    steps=[
-                        dict(range=[0, 20], color="rgba(15,163,107,0.14)"),
-                        dict(range=[20, 40], color="rgba(232,161,58,0.14)"),
-                        dict(range=[40, 100], color="rgba(214,69,69,0.14)"),
-                    ],
-                ),
-            ))
-            fig_gauge.update_layout(height=240, margin=dict(l=10, r=10, t=20, b=10),
-                                    paper_bgcolor="rgba(0,0,0,0)")
-            st.plotly_chart(fig_gauge, use_container_width=True, config={"displayModeBar": False})
-            chart_foot()
+            chart_title("🎯", "Jauge de risque", "Position du dossier sur l'échelle de risque")
+            try:
+                fig_gauge = go.Figure(go.Indicator(
+                    mode="gauge+number",
+                    value=round(proba_defaut * 100, 1),
+                    number=dict(suffix="%", font=dict(size=40, family="Sora", color=couleur)),
+                    gauge=dict(
+                        axis=dict(range=[0, 100]),
+                        bar=dict(color=couleur, thickness=0.55),
+                        bgcolor="rgba(18,36,74,0.06)",
+                        steps=[
+                            dict(range=[0, 20], color="rgba(15,163,107,0.14)"),
+                            dict(range=[20, 40], color="rgba(232,161,58,0.14)"),
+                            dict(range=[40, 100], color="rgba(214,69,69,0.14)"),
+                        ],
+                    ),
+                ))
+                fig_gauge.update_layout(height=240, margin=dict(l=10, r=10, t=20, b=10),
+                                        paper_bgcolor="rgba(0,0,0,0)")
+                afficher_fig(fig_gauge)
+            except Exception as e:
+                st.warning(f"⚠️ Jauge indisponible : {e}")
 
         with g2:
-            chart_head("📊", "Décomposition des facteurs", "Niveau de risque par dimension du dossier")
-            facteurs = {
-                "Âge": max(0, min(100, (age - 18) / 82 * 100)),
-                "Revenu": max(0, min(100, revenu / 100_000 * 100)),
-                "Ancienneté": max(0, min(100, emp_length / 20 * 100)),
-                "Endettement": max(0, min(100, dti * 100)),
-                "Historique": max(0, min(100, cred_hist / 20 * 100)),
-            }
-            fig = go.Figure(go.Bar(
-                x=list(facteurs.keys()), y=list(facteurs.values()),
-                marker_color=["#0FA36B" if v < 50 else "#E8A13A" if v < 70 else "#D64545"
-                              for v in facteurs.values()],
-                text=[f"{v:.0f}%" for v in facteurs.values()], textposition="outside",
-                marker=dict(cornerradius=6),
-            ))
-            fig.update_layout(
-                height=240, showlegend=False,
-                plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                font=dict(family="Manrope"),
-                yaxis=dict(range=[0, 110], gridcolor="#E5EAF3"),
-                xaxis=dict(gridcolor="rgba(0,0,0,0)"),
-                margin=dict(l=10, r=10, t=20, b=10),
-            )
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-            chart_foot()
+            chart_title("📊", "Décomposition des facteurs", "Risque par dimension du dossier")
+            try:
+                facteurs = {
+                    "Âge": max(0, min(100, (age - 18) / 82 * 100)),
+                    "Revenu": max(0, min(100, revenu / 100_000 * 100)),
+                    "Ancienneté": max(0, min(100, emp_length / 20 * 100)),
+                    "Endettement": max(0, min(100, dti * 100)),
+                    "Historique": max(0, min(100, cred_hist / 20 * 100)),
+                }
+                fig = go.Figure(go.Bar(
+                    x=list(facteurs.keys()), y=list(facteurs.values()),
+                    marker=dict(color=[couleur_risque(v) for v in facteurs.values()]),
+                    text=[f"{v:.0f}%" for v in facteurs.values()], textposition="outside",
+                ))
+                fig.update_layout(
+                    height=240, showlegend=False,
+                    plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                    font=dict(family="Manrope"),
+                    yaxis=dict(range=[0, 110], gridcolor="#E5EAF3"),
+                    xaxis=dict(gridcolor="rgba(0,0,0,0)"),
+                    margin=dict(l=10, r=10, t=20, b=10),
+                )
+                afficher_fig(fig)
+            except Exception as e:
+                st.warning(f"⚠️ Graphique indisponible : {e}")
 
-        # ---- Recommandations ----
         st.markdown("#### 💡 Recommandations")
         if decision == "Défavorable":
             st.warning("""
@@ -598,17 +573,14 @@ def render_diagnostic():
         st.error(f"❌ Erreur lors de la prédiction : {e}")
 
 # ====================================================================
-# PAGE 2 — DASHBOARD ANALYTIQUE
+# PAGE 2 — DASHBOARD
 # ====================================================================
 def render_dashboard():
-    hero(
-        "Dashboard analytique",
-        "Historique, tendances et explications des analyses effectuées",
-        [("🗄️ Persistance JSON", False), ("📈 " + str(len(st.session_state.historique)) + " analyses", True)],
-    )
+    n = len(st.session_state.historique)
+    hero("Dashboard analytique", "Historique, tendances et explications des analyses",
+         [("🗄️ Persistance JSON", False), (f"📈 {n} analyse(s)", True)])
 
     records = st.session_state.historique
-
     if not records:
         st.markdown("""
         <div class="empty-state">
@@ -623,7 +595,7 @@ def render_dashboard():
     df["date"] = pd.to_datetime(df["horodatage"])
     df["proba_pct"] = (df["proba_defaut"] * 100).round(1)
 
-    # ---------------- KPIs ----------------
+    # ---------- KPIs ----------
     section_title("🎯", "Indicateurs clés", "Vue synthétique de l'activité de scoring")
     total = len(df)
     taux_fav = (df.decision == "Favorable").mean() * 100
@@ -635,169 +607,160 @@ def render_dashboard():
     k1, k2, k3 = st.columns(3)
     with k1:
         kpi_card("🧮", "Analyses effectuées", f"{total}", "dossiers traités", "blue")
-        kpi_card("💰", "Montant moyen demandé", f"{montant_moy:,.0f} $", "par dossier", "gold")
+        kpi_card("💰", "Montant moyen", f"{montant_moy:,.0f} $", "par dossier", "gold")
     with k2:
-        kpi_card("✅", "Taux d'avis favorables", f"{taux_fav:.0f}%", "dossiers acceptables", "green")
+        kpi_card("✅", "Avis favorables", f"{taux_fav:.0f}%", "dossiers acceptables", "green")
         kpi_card("📉", "Risque moyen", f"{proba_moy:.1f}%", "probabilité de défaut", "amber")
     with k3:
-        kpi_card("🔴", "Taux de refus", f"{taux_ref:.0f}%", "dossiers à risque élevé", "red")
+        kpi_card("🔴", "Taux de refus", f"{taux_ref:.0f}%", "dossiers à risque", "red")
         kpi_card("⚖️", "Endettement moyen", f"{dti_moy:.1f}%", "ratio prêt / revenu", "navy")
 
-    # ---------------- Graphique 1 : décisions ----------------
-    section_title("📈", "Graphiques & explications", "Interprétation automatique des données historiques")
-    c1, c2 = st.columns(2, gap="large")
+    section_title("📈", "Graphiques & explications", "Interprétation automatique des données")
 
+    # ---------- 1. Donut décisions ----------
+    c1, c2 = st.columns(2, gap="large")
     with c1:
-        chart_head("🍩", "Répartition des décisions", "Part de chaque avis rendu par le modèle")
-        counts = df.decision.value_counts()
-        fig = go.Figure(go.Pie(
-            labels=counts.index, values=counts.values, hole=0.62,
-            marker=dict(colors=[COULEURS.get(c, "#888") for c in counts.index]),
-            textinfo="percent", textfont=dict(size=13, family="Manrope"),
-        ))
-        fig.update_layout(height=300, margin=dict(l=10, r=10, t=10, b=10),
-                          paper_bgcolor="rgba(0,0,0,0)", font=dict(family="Manrope"),
-                          showlegend=True, legend=dict(orientation="h", y=-0.08))
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-        chart_foot()
+        chart_title("🍩", "Répartition des décisions", "Part de chaque avis rendu")
+        try:
+            counts = df.decision.value_counts()
+            fig = go.Figure(go.Pie(
+                labels=list(counts.index), values=list(counts.values), hole=0.62,
+                marker=dict(colors=[COULEURS.get(c, "#888888") for c in counts.index]),
+                textinfo="percent",
+            ))
+            fig.update_layout(legend=dict(orientation="h", y=-0.08))
+            afficher_fig(style_fig(fig, 300, legend=True))
+        except Exception as e:
+            st.warning(f"⚠️ Graphique indisponible : {e}")
         tone = "success" if taux_fav >= 50 else "danger"
-        insight_box("💡", "Lecture",
-                    f"Sur {total} analyses, {taux_fav:.0f}% ont reçu un avis favorable et {taux_ref:.0f}% un avis défavorable. "
+        insight_box("💡", "Interprétation",
+                    f"Sur {total} analyse(s), {taux_fav:.0f}% ont reçu un avis favorable et {taux_ref:.0f}% un avis défavorable. "
                     + ("Le flux de dossiers soumis présente un profil globalement sain."
                        if taux_fav >= 50 else
                        "La majorité des dossiers soumis est risquée : un ciblage en amont des demandes est conseillé."),
                     tone)
 
+    # ---------- 2. Histogramme risque ----------
     with c2:
-        chart_head("📊", "Distribution du risque", "Histogramme des probabilités de défaut")
-        bins = pd.cut(df.proba_pct, bins=range(0, 101, 10))
-        hist = df.groupby(bins, observed=True).size().reset_index(name="n")
-        hist["label"] = hist["proba_pct"].apply(lambda i: f"{i.left}-{i.right}")
-        fig = go.Figure(go.Bar(
-            x=hist.label, y=hist.n,
-            marker_color=[COULEURS["Favorable"] if i.left < 20 else
-                          COULEURS["Modéré"] if i.left < 40 else
-                          COULEURS["Défavorable"] for i in hist["proba_pct"]],
-            marker=dict(cornerradius=5),
-        ))
-        fig.update_layout(height=300, showlegend=False,
-                          plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                          font=dict(family="Manrope"),
-                          yaxis=dict(gridcolor="#E5EAF3"), xaxis=dict(gridcolor="rgba(0,0,0,0)"),
-                          margin=dict(l=10, r=10, t=10, b=10))
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-        chart_foot()
-        insight_box("🔎", "Lecture",
+        chart_title("📊", "Distribution du risque", "Histogramme des probabilités de défaut")
+        try:
+            bins = pd.cut(df["proba_pct"], bins=[0, 20, 40, 60, 80, 100], include_lowest=True)
+            hist = bins.value_counts().sort_index()
+            labels = [f"{int(i.left)}–{int(i.right)}%" for i in hist.index]
+            colors = [couleur_risque(i.left) for i in hist.index]
+            fig = go.Figure(go.Bar(x=labels, y=list(hist.values),
+                                   marker=dict(color=colors),
+                                   text=list(hist.values), textposition="outside"))
+            afficher_fig(style_fig(fig, 300))
+        except Exception as e:
+            st.warning(f"⚠️ Graphique indisponible : {e}")
+        insight_box("🔎", "Interprétation",
                     f"Le risque moyen s'établit à {proba_moy:.1f}% (médiane : {df.proba_pct.median():.1f}%). "
-                    + ("La distribution est concentrée sur les risques faibles : le modèle discrimine surtout des profils solvables."
+                    + ("La distribution est concentrée sur les risques faibles."
                        if proba_moy < 30 else
                        "Une part importante des dossiers se situe en zone de risque élevé."),
                     "info")
 
-    # ---------------- Graphique 2 : activité + objets ----------------
+    # ---------- 3. Activité temporelle ----------
     c1, c2 = st.columns(2, gap="large")
     with c1:
-        chart_head("📅", "Activité dans le temps", "Nombre d'analyses par jour")
-        act = df.groupby(df.date.dt.date).size().reset_index(name="n")
-        fig = go.Figure()
-        fig.add_trace(go.Bar(x=act["date"].astype(str), y=act.n,
-                             marker_color="#2E6DB4", marker=dict(cornerradius=5)))
-        fig.add_trace(go.Scatter(x=act["date"].astype(str), y=act.n,
-                                 mode="lines+markers", line=dict(color="#D4AF37", width=2.5)))
-        fig.update_layout(height=300, showlegend=False, barmode="overlay",
-                          plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                          font=dict(family="Manrope"),
-                          yaxis=dict(gridcolor="#E5EAF3"), xaxis=dict(gridcolor="rgba(0,0,0,0)"),
-                          margin=dict(l=10, r=10, t=10, b=10))
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-        chart_foot()
-        pic = act.loc[act.n.idxmax()]
-        insight_box("📅", "Lecture",
-                    f"Le pic d'activité ({int(pic.n)} analyses) a été enregistré le {pic.date}. "
-                    + ("L'usage est régulier sur la période." if len(act) > 1 else "Première journée d'utilisation du scoring."),
-                    "info")
+        chart_title("📅", "Activité dans le temps", "Nombre d'analyses par jour")
+        try:
+            act = df.groupby(df.date.dt.date).size().reset_index(name="n")
+            fig = go.Figure()
+            fig.add_trace(go.Bar(x=act["date"].astype(str), y=act.n,
+                                 marker=dict(color="#2E6DB4")))
+            fig.add_trace(go.Scatter(x=act["date"].astype(str), y=act.n,
+                                     mode="lines+markers",
+                                     line=dict(color="#D4AF37", width=2.5)))
+            fig.update_layout(barmode="overlay")
+            afficher_fig(style_fig(fig, 300))
+            pic = act.loc[act.n.idxmax()]
+            txt = (f"Le pic d'activité ({int(pic.n)} analyse(s)) a été enregistré le {pic.date}. "
+                   + ("L'usage est régulier sur la période." if len(act) > 1 else "Première journée d'utilisation du scoring."))
+        except Exception as e:
+            st.warning(f"⚠️ Graphique indisponible : {e}")
+            txt = "Données temporelles insuffisantes pour une interprétation."
+        insight_box("📅", "Interprétation", txt, "info")
 
+    # ---------- 4. Risque par objet ----------
     with c2:
-        chart_head("🎯", "Risque moyen par objet de prêt", "Quelles finalités présentent le plus de risque ?")
-        par_objet = df.groupby("objet").proba_pct.mean().sort_values(ascending=True).reset_index()
-        fig = go.Figure(go.Bar(
-            y=par_objet.objet, x=par_objet.proba_pct, orientation="h",
-            marker_color=[COULEURS["Favorable"] if v < 20 else
-                          COULEURS["Modéré"] if v < 40 else
-                          COULEURS["Défavorable"] for v in par_objet.proba_pct],
-            marker=dict(cornerradius=5),
-            text=[f"{v:.0f}%" for v in par_objet.proba_pct], textposition="outside",
-        ))
-        fig.update_layout(height=300, showlegend=False,
-                          plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                          font=dict(family="Manrope"),
-                          xaxis=dict(gridcolor="#E5EAF3", range=[0, 100]), yaxis=dict(gridcolor="rgba(0,0,0,0)"),
-                          margin=dict(l=10, r=10, t=10, b=10))
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-        chart_foot()
-        pire, meilleur = par_objet.objet.iloc[-1], par_objet.objet.iloc[0]
-        insight_box("⚠️", "Lecture",
-                    f"Les prêts « {pire} » présentent le risque moyen le plus élevé, tandis que « {meilleur} » "
-                    "sont les plus sûrs. Adaptez les conditions (taux, garanties) selon la finalité.",
-                    "warning")
-
-    # ---------------- Graphique 3 : scatter + logement ----------------
-    c1, c2 = st.columns(2, gap="large")
-    with c1:
-        chart_head("🔵", "Revenu vs montant du prêt", "Taille de la bulle = probabilité de défaut")
-        fig = go.Figure()
-        for dec in ["Favorable", "Modéré", "Défavorable"]:
-            sub = df[df.decision == dec]
-            if sub.empty:
-                continue
-            fig.add_trace(go.Scatter(
-                x=sub.revenu, y=sub.montant, mode="markers", name=dec,
-                marker=dict(size=sub.proba_pct / 4 + 6, color=COULEURS[dec],
-                            opacity=0.75, line=dict(width=1, color="white")),
+        chart_title("🎯", "Risque moyen par objet de prêt", "Quelles finalités sont les plus risquées ?")
+        try:
+            par_objet = df.groupby("objet")["proba_pct"].mean().sort_values().reset_index()
+            fig = go.Figure(go.Bar(
+                y=list(par_objet.objet), x=list(par_objet.proba_pct), orientation="h",
+                marker=dict(color=[couleur_risque(v) for v in par_objet.proba_pct]),
+                text=[f"{v:.0f}%" for v in par_objet.proba_pct], textposition="outside",
             ))
-        fig.update_layout(height=320,
-                          plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                          font=dict(family="Manrope"),
-                          xaxis=dict(title="Revenu annuel ($)", gridcolor="#E5EAF3"),
-                          yaxis=dict(title="Montant du prêt ($)", gridcolor="#E5EAF3"),
-                          legend=dict(orientation="h", y=-0.18),
-                          margin=dict(l=10, r=10, t=10, b=10))
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-        chart_foot()
-        corr = df["dti"].corr(df["proba_defaut"])
-        force = "forte" if abs(corr) > 0.6 else "modérée" if abs(corr) > 0.3 else "faible"
-        insight_box("🔗", "Lecture",
-                    f"La corrélation entre endettement (DTI) et probabilité de défaut est {force} "
-                    f"(r = {corr:.2f}). Les bulles rouges (dossiers risqués) se concentrent chez les "
-                    "demandeurs peu revenus relativement au montant emprunté.",
-                    "info")
+            fig.update_layout(xaxis=dict(range=[0, 100]))
+            afficher_fig(style_fig(fig, 300))
+            pire, meilleur = par_objet.objet.iloc[-1], par_objet.objet.iloc[0]
+            txt = (f"Les prêts « {pire} » présentent le risque moyen le plus élevé, tandis que « {meilleur} » "
+                   "sont les plus sûrs. Adaptez les conditions (taux, garanties) selon la finalité.")
+        except Exception as e:
+            st.warning(f"⚠️ Graphique indisponible : {e}")
+            txt = "Données insuffisantes pour comparer les objets de prêt."
+        insight_box("⚠️", "Interprétation", txt, "warning")
 
+    # ---------- 5. Scatter revenu / prêt ----------
+    c1, c2 = st.columns(2, gap="large")
+    with c1:
+        chart_title("🔵", "Revenu vs montant du prêt", "Taille de bulle = probabilité de défaut")
+        try:
+            fig = go.Figure()
+            for dec in ["Favorable", "Modéré", "Défavorable"]:
+                sub = df[df.decision == dec]
+                if sub.empty:
+                    continue
+                fig.add_trace(go.Scatter(
+                    x=list(sub.revenu), y=list(sub.montant), mode="markers", name=dec,
+                    marker=dict(size=list(sub.proba_pct / 4 + 6),
+                                color=COULEURS[dec], opacity=0.75,
+                                line=dict(width=1, color="white")),
+                ))
+            fig.update_layout(
+                xaxis=dict(title="Revenu annuel ($)"),
+                yaxis=dict(title="Montant du prêt ($)"),
+                legend=dict(orientation="h", y=-0.18),
+            )
+            afficher_fig(style_fig(fig, 320, legend=True))
+        except Exception as e:
+            st.warning(f"⚠️ Graphique indisponible : {e}")
+        try:
+            corr = df["dti"].corr(df["proba_defaut"]) if len(df) > 2 else float("nan")
+            if pd.isna(corr):
+                txt = "Corrélation non calculable avec si peu d'analyses (minimum 3 requises)."
+            else:
+                force = "forte" if abs(corr) > 0.6 else "modérée" if abs(corr) > 0.3 else "faible"
+                txt = (f"La corrélation entre endettement (DTI) et probabilité de défaut est {force} (r = {corr:.2f}). "
+                       "Les bulles rouges se concentrent chez les demandeurs dont le prêt est élevé relativement au revenu.")
+        except Exception:
+            txt = "Corrélation non calculable."
+        insight_box("🔗", "Interprétation", txt, "info")
+
+    # ---------- 6. Risque par logement ----------
     with c2:
-        chart_head("🏠", "Risque par situation de logement", "Probabilité de défaut moyenne par statut")
-        par_home = df.groupby("logement").agg(n=("proba_pct", "size"), moy=("proba_pct", "mean")).reset_index()
-        fig = go.Figure(go.Bar(
-            x=par_home.logement, y=par_home.moy,
-            marker_color=[COULEURS["Favorable"] if v < 20 else
-                          COULEURS["Modéré"] if v < 40 else
-                          COULEURS["Défavorable"] for v in par_home.moy],
-            marker=dict(cornerradius=6),
-            text=[f"{v:.0f}%<br>({int(n)})" for v, n in zip(par_home.moy, par_home.n)],
-            textposition="outside",
-        ))
-        fig.update_layout(height=320, showlegend=False,
-                          plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                          font=dict(family="Manrope"),
-                          yaxis=dict(gridcolor="#E5EAF3", range=[0, 100]), xaxis=dict(gridcolor="rgba(0,0,0,0)"),
-                          margin=dict(l=10, r=10, t=10, b=10))
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-        chart_foot()
-        top = par_home.loc[par_home.moy.idxmax()]
-        insight_box("🏠", "Lecture",
-                    f"Le statut « {top.logement} » concentre le risque moyen le plus élevé ({top.moy:.0f}%). "
-                    "Les propriétaires (OWN/MORTGAGE) présentent historiquement des défauts plus faibles.",
-                    "warning")
+        chart_title("🏠", "Risque par situation de logement", "Probabilité de défaut moyenne par statut")
+        try:
+            par_home = df.groupby("logement").agg(
+                n=("proba_pct", "size"), moy=("proba_pct", "mean")).reset_index()
+            fig = go.Figure(go.Bar(
+                x=list(par_home.logement), y=list(par_home.moy),
+                marker=dict(color=[couleur_risque(v) for v in par_home.moy]),
+                text=[f"{v:.0f}%" for v in par_home.moy], textposition="outside",
+            ))
+            fig.update_layout(yaxis=dict(range=[0, 100]))
+            afficher_fig(style_fig(fig, 320))
+            top = par_home.loc[par_home.moy.idxmax()]
+            txt = (f"Le statut « {top.logement} » concentre le risque moyen le plus élevé ({top.moy:.0f}%). "
+                   "Les propriétaires présentent historiquement des défauts plus faibles.")
+        except Exception as e:
+            st.warning(f"⚠️ Graphique indisponible : {e}")
+            txt = "Données insuffisantes par statut de logement."
+        insight_box("🏠", "Interprétation", txt, "warning")
 
-    # ---------------- Historique détaillé ----------------
+    # ---------- Historique détaillé ----------
     section_title("🗄️", "Historique détaillé", "Toutes les analyses enregistrées")
 
     df_aff = df.copy()
@@ -810,16 +773,18 @@ def render_dashboard():
     df_aff = df_aff[["Date", "Âge", "Revenu ($)", "Prêt ($)", "Objet", "Logement",
                      "proba_pct", "Score", "Décision"]]
 
-    st.dataframe(
-        df_aff.sort_values("Date", ascending=False),
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "proba_pct": st.column_config.ProgressColumn(
-                "Risque", min_value=0, max_value=100, format="%.1f"),
-            "Score": st.column_config.NumberColumn("Score", format="%d/100"),
-        },
-    )
+    try:
+        st.dataframe(
+            df_aff.sort_values("Date", ascending=False),
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "proba_pct": st.column_config.ProgressColumn("Risque", min_value=0, max_value=100, format="%.1f"),
+            },
+        )
+    except Exception:
+        st.dataframe(df_aff.sort_values("Date", ascending=False),
+                     use_container_width=True, hide_index=True)
 
     cexp, cdel, _ = st.columns([1, 1, 2])
     csv = df.to_csv(index=False).encode("utf-8")
@@ -842,20 +807,15 @@ def render_dashboard():
                 st.rerun()
 
 # --------------------------------------------------------------------
-# Footer commun
-# --------------------------------------------------------------------
 def render_footer():
-    st.markdown(f"""
+    st.markdown("""
     <div class="footer">
         <strong>CreditScore Pro</strong> • Modèle Random Forest • Spark ML & Streamlit
-        <br>🔒 Données traitées de manière confidentielle • Aucune donnée persistée hors historique local
+        <br>🔒 Données traitées de manière confidentielle
         <br><a href="https://ibuuuu19.github.io/credit-risk-streamlit/privacy/" target="_blank">
         Politique de confidentialité</a>
     </div>""", unsafe_allow_html=True)
 
-# --------------------------------------------------------------------
-# Routage
-# --------------------------------------------------------------------
 if page == "diagnostic":
     render_diagnostic()
 else:
