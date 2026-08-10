@@ -1,22 +1,17 @@
 """
-CreditScore Pro v3.1 — Application Streamlit professionnelle
+CreditScore Pro v3.2 — Application Streamlit professionnelle
 =============================================================
 • Page Diagnostic : scoring de risque de crédit (Spark ML / Random Forest)
-• Page Dashboard  : historique persistant + KPIs + graphiques + explications
+• Page Dashboard  : historique persistant + KPIs + graphiques + export PDF
 
-v3.1 — Corrections des graphiques :
-• marker Plotly défini UNE seule fois (plus de conflit marker_color/marker)
-• suppression de `cornerradius` (incompatible avec d'anciennes versions de plotly)
-• histogramme à binning manuel robuste (value_counts sur pd.cut)
-• corrélation protégée contre NaN (cas 1 seule analyse)
-• chaque graphique dans un try/except : plus de crash global
-• div HTML auto-fermées (plus de balises ouvertes)
+v3.2 — Ajout de l'export PDF professionnel avec interprétations détaillées
 """
 
 import json
 import os
 import time
 import uuid
+import io
 from datetime import datetime
 
 import streamlit as st
@@ -28,6 +23,16 @@ from pyspark.sql.types import (
     StructType, StructField, DoubleType, StringType
 )
 from pyspark.ml import PipelineModel
+
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import cm
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+    PageBreak, Image
+)
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
 
 # --------------------------------------------------------------------
 # Constantes
@@ -227,7 +232,7 @@ div[data-testid="stMetric"] div[data-testid="stMetricValue"] { color: #12244A !i
 """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------
-# Helpers HTML (divs toujours fermées !)
+# Helpers HTML
 # --------------------------------------------------------------------
 def hero(titre, sous, badges):
     b = "".join(f'<span class="hbadge{" gold" if g else ""}">{t}</span>' for t, g in badges)
@@ -312,6 +317,319 @@ def decision_depuis_proba(p):
     return "Défavorable"
 
 # --------------------------------------------------------------------
+# Génération du rapport PDF
+# --------------------------------------------------------------------
+def generer_rapport_pdf(df, inclure_graphiques=True):
+    """Génère un rapport PDF professionnel avec toutes les analyses."""
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=A4,
+        rightMargin=2*cm, leftMargin=2*cm,
+        topMargin=2*cm, bottomMargin=2*cm,
+    )
+    
+    styles = getSampleStyleSheet()
+    
+    styles.add(ParagraphStyle(
+        name='TitrePrincipal', parent=styles['Heading1'],
+        fontSize=24, textColor=colors.HexColor('#12244A'),
+        spaceAfter=30, alignment=TA_CENTER, fontName='Helvetica-Bold',
+    ))
+    styles.add(ParagraphStyle(
+        name='SousTitre', parent=styles['Heading2'],
+        fontSize=14, textColor=colors.HexColor('#1B3B6F'),
+        spaceAfter=12, spaceBefore=20, fontName='Helvetica-Bold',
+    ))
+    styles.add(ParagraphStyle(
+        name='CorpsTexte', parent=styles['Normal'],
+        fontSize=10, leading=14, alignment=TA_JUSTIFY, spaceAfter=8,
+    ))
+    styles.add(ParagraphStyle(
+        name='InsightBox', parent=styles['Normal'],
+        fontSize=9, leading=12,
+        backColor=colors.HexColor('#EAF1FB'),
+        borderColor=colors.HexColor('#C9DCF5'),
+        borderWidth=1, borderPadding=8, spaceAfter=10,
+    ))
+    
+    story = []
+    
+    # ============ PAGE DE COUVERTURE ============
+    story.append(Spacer(1, 3*cm))
+    story.append(Paragraph("CreditScore Pro", styles['TitrePrincipal']))
+    story.append(Paragraph("Rapport d'Analyse de Risque de Crédit", styles['Heading2']))
+    story.append(Spacer(1, 1*cm))
+    
+    total = len(df)
+    taux_fav = (df.decision == "Favorable").mean() * 100
+    proba_moy = df.proba_pct.mean()
+    montant_moy = df.montant.mean()
+    
+    donnees_couverture = [
+        ['Indicateur', 'Valeur'],
+        ['Nombre d\'analyses', str(total)],
+        ['Taux d\'avis favorables', f'{taux_fav:.1f}%'],
+        ['Probabilité de défaut moyenne', f'{proba_moy:.1f}%'],
+        ['Montant moyen demandé', f'{montant_moy:,.0f} $'],
+        ['Date du rapport', datetime.now().strftime('%d/%m/%Y')],
+    ]
+    
+    table_couverture = Table(donnees_couverture, colWidths=[8*cm, 6*cm])
+    table_couverture.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#12244A')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 11),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+        ('FONTSIZE', (0, 1), (-1, -1), 10),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8FAFD')]),
+    ]))
+    story.append(table_couverture)
+    story.append(PageBreak())
+    
+    # ============ RÉSUMÉ EXÉCUTIF ============
+    story.append(Paragraph("Résumé Exécutif", styles['SousTitre']))
+    resume = (
+        f"Ce rapport synthétise <b>{total} analyses</b> de risque de crédit effectuées "
+        f"avec le modèle CreditScore Pro. Le taux d'avis favorables est de <b>{taux_fav:.1f}%</b>, "
+        f"indiquant {'un profil globalement sain' if taux_fav >= 50 else 'une majorité de dossiers à risque'}. "
+        f"La probabilité de défaut moyenne s'établit à <b>{proba_moy:.1f}%</b>, avec un montant moyen "
+        f"de prêt demandé de <b>{montant_moy:,.0f} $</b>."
+    )
+    story.append(Paragraph(resume, styles['CorpsTexte']))
+    story.append(Spacer(1, 0.5*cm))
+    
+    if taux_fav >= 70:
+        interpretation = "✅ Le portefeuille analysé présente un profil très favorable. La majorité des dossiers sont solvables avec un risque maîtrisé."
+    elif taux_fav >= 50:
+        interpretation = "⚠️ Le portefeuille est globalement acceptable mais nécessite une vigilance sur certains segments."
+    else:
+        interpretation = "🔴 La majorité des dossiers présentent un risque élevé. Un renforcement des critères de sélection est recommandé."
+    
+    story.append(Paragraph(interpretation, styles['InsightBox']))
+    story.append(Spacer(1, 0.5*cm))
+    
+    # Graphiques (si kaleido disponible)
+    if inclure_graphiques:
+        try:
+            import plotly.io as pio
+            
+            story.append(Paragraph("Visualisations Clés", styles['SousTitre']))
+            
+            counts = df.decision.value_counts()
+            fig_donut = go.Figure(go.Pie(
+                labels=list(counts.index), values=list(counts.values), hole=0.6,
+                marker=dict(colors=['#0FA36B', '#E8A13A', '#D64545'][:len(counts)]),
+            ))
+            
+            img_bytes = pio.to_image(fig_donut, format='png', width=500, height=350)
+            img = Image(io.BytesIO(img_bytes), width=12*cm, height=8.4*cm)
+            story.append(img)
+            story.append(Spacer(1, 0.3*cm))
+            story.append(Paragraph(
+                "<i>Répartition des décisions de crédit</i>",
+                ParagraphStyle('Caption', parent=styles['Normal'],
+                              fontSize=9, alignment=TA_CENTER)
+            ))
+            story.append(Spacer(1, 0.5*cm))
+        except Exception:
+            story.append(Paragraph(
+                "⚠️ Graphiques non inclus (kaleido non disponible)",
+                styles['CorpsTexte']
+            ))
+    
+    # ============ TABLEAU DÉTAILLÉ ============
+    story.append(PageBreak())
+    story.append(Paragraph("Détail des Analyses", styles['SousTitre']))
+    
+    df_table = df[[
+        'date', 'age', 'revenu', 'montant', 'objet',
+        'logement', 'proba_pct', 'decision'
+    ]].copy()
+    df_table['date'] = df_table['date'].dt.strftime('%d/%m/%y')
+    df_table = df_table.sort_values('date', ascending=False).head(20)
+    
+    donnees_table = [['Date', 'Âge', 'Revenu', 'Prêt', 'Objet', 'Risque', 'Décision']]
+    for _, row in df_table.iterrows():
+        donnees_table.append([
+            row['date'],
+            str(row['age']),
+            f"{row['revenu']:,}",
+            f"{row['montant']:,}",
+            row['objet'][:12],
+            f"{row['proba_pct']:.0f}%",
+            row['decision'],
+        ])
+    
+    table_detail = Table(
+        donnees_table,
+        colWidths=[2.2*cm, 1.5*cm, 2.2*cm, 2.2*cm, 2.8*cm, 1.8*cm, 2.5*cm]
+    )
+    table_detail.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#12244A')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 8),
+        ('FONTSIZE', (0, 1), (-1, -1), 7),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8FAFD')]),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    
+    for i, row in enumerate(donnees_table[1:], start=1):
+        decision = row[-1]
+        if decision == 'Favorable':
+            table_detail.setStyle(TableStyle([
+                ('BACKGROUND', (-1, i), (-1, i), colors.HexColor('#E6F7F0')),
+                ('TEXTCOLOR', (-1, i), (-1, i), colors.HexColor('#0B6B47')),
+            ]))
+        elif decision == 'Modéré':
+            table_detail.setStyle(TableStyle([
+                ('BACKGROUND', (-1, i), (-1, i), colors.HexColor('#FDF4E5')),
+                ('TEXTCOLOR', (-1, i), (-1, i), colors.HexColor('#8A5A14')),
+            ]))
+        else:
+            table_detail.setStyle(TableStyle([
+                ('BACKGROUND', (-1, i), (-1, i), colors.HexColor('#FBECEC')),
+                ('TEXTCOLOR', (-1, i), (-1, i), colors.HexColor('#8C2B2B')),
+            ]))
+    
+    story.append(table_detail)
+    
+    if len(df) > 20:
+        story.append(Spacer(1, 0.3*cm))
+        story.append(Paragraph(
+            f"<i>Tableau limité aux 20 analyses les plus récentes sur {total} au total.</i>",
+            ParagraphStyle('Note', parent=styles['Normal'], fontSize=8, textColor=colors.grey)
+        ))
+    
+    # ============ ANALYSES DÉTAILLÉES ============
+    story.append(PageBreak())
+    story.append(Paragraph("Analyses Détaillées & Interprétations", styles['SousTitre']))
+    
+    df_detail = df.sort_values('date', ascending=False).head(5)
+    
+    for idx, (_, row) in enumerate(df_detail.iterrows(), 1):
+        story.append(Paragraph(
+            f"Analyse #{idx} — {row['date'].strftime('%d/%m/%Y %H:%M')}",
+            styles['Heading3']
+        ))
+        
+        carac = (
+            f"<b>Profil :</b> {row['age']} ans, revenu {row['revenu']:,} $, "
+            f"ancienneté {row['anciennete']} ans<br/>"
+            f"<b>Prêt :</b> {row['montant']:,} $ à {row['taux']}% pour {row['objet']}<br/>"
+            f"<b>Logement :</b> {row['logement']}, historique crédit {row['hist_credit']} ans<br/>"
+            f"<b>Endettement :</b> {row['dti']*100:.1f}%"
+        )
+        story.append(Paragraph(carac, styles['CorpsTexte']))
+        
+        decision = row['decision']
+        proba = row['proba_pct']
+        
+        if decision == 'Favorable':
+            couleur = '#0FA36B'
+            emoji = '✅'
+            interpretation_text = (
+                f"Le dossier présente un profil favorable avec une probabilité de défaut "
+                f"de seulement {proba:.1f}%. Les indicateurs financiers sont solides et "
+                f"le risque est maîtrisé. L'octroi du crédit peut être envisagé aux "
+                f"conditions proposées."
+            )
+        elif decision == 'Modéré':
+            couleur = '#E8A13A'
+            emoji = '⚠️'
+            interpretation_text = (
+                f"Le dossier présente un risque modéré (probabilité de défaut : {proba:.1f}%). "
+                f"Certains indicateurs appellent à la prudence. Un examen complémentaire et "
+                f"des garanties proportionnées sont recommandés."
+            )
+        else:
+            couleur = '#D64545'
+            emoji = '🔴'
+            interpretation_text = (
+                f"Le dossier présente un risque élevé (probabilité de défaut : {proba:.1f}%). "
+                f"Plusieurs facteurs de risque sont identifiés. Le refus ou des conditions "
+                f"très restrictives (garanties substantielles, taux majoré) sont recommandés."
+            )
+        
+        style_resultat = ParagraphStyle(
+            f'Resultat{idx}', parent=styles['Normal'],
+            fontSize=10, leading=13,
+            backColor=colors.HexColor(couleur + '20'),
+            borderColor=colors.HexColor(couleur),
+            borderWidth=2, borderPadding=10, spaceAfter=12,
+        )
+        
+        story.append(Paragraph(
+            f"{emoji} <b>Décision : {decision}</b> (Score : {row['score']}/100)<br/><br/>"
+            f"{interpretation_text}",
+            style_resultat
+        ))
+        
+        story.append(Spacer(1, 0.3*cm))
+    
+    if len(df) > 5:
+        story.append(Paragraph(
+            f"<i>Seules les 5 analyses les plus récentes sont détaillées. "
+            f"Le rapport complet comprend {total} analyses.</i>",
+            ParagraphStyle('Note', parent=styles['Normal'], fontSize=8, textColor=colors.grey)
+        ))
+    
+    # ============ RECOMMANDATIONS GLOBALES ============
+    story.append(PageBreak())
+    story.append(Paragraph("Recommandations Globales", styles['SousTitre']))
+    
+    if taux_fav >= 70:
+        recommandations = """
+        <b>1. Maintenir les critères actuels</b><br/>
+        Le portefeuille présente un profil sain. Les critères de sélection sont appropriés.<br/><br/>
+        <b>2. Optimiser l'offre commerciale</b><br/>
+        Proposer des services complémentaires aux clients solvables pour augmenter la fidélisation.<br/><br/>
+        <b>3. Surveiller les segments à risque</b><br/>
+        Identifier les sous-segments qui concentrent les risques pour adapter les conditions.
+        """
+    elif taux_fav >= 50:
+        recommandations = """
+        <b>1. Renforcer le ciblage en amont</b><br/>
+        Améliorer la pré-qualification des demandes pour réduire le taux de dossiers risqués.<br/><br/>
+        <b>2. Adapter les conditions</b><br/>
+        Pour les dossiers modérés : garanties proportionnelles, taux ajustés, suivi renforcé.<br/><br/>
+        <b>3. Analyser les segments critiques</b><br/>
+        Identifier les objets de prêt et profils qui concentrent les risques.
+        """
+    else:
+        recommandations = """
+        <b>1. Revoir les critères de sélection</b><br/>
+        Renforcer les exigences minimales (revenu, ancienneté, endettement).<br/><br/>
+        <b>2. Refuser les dossiers à haut risque</b><br/>
+        Appliquer strictement le refus pour les probabilités de défaut > 40%.<br/><br/>
+        <b>3. Exiger des garanties substantielles</b><br/>
+        Garanties réelles, caution solidaire, assurance crédit obligatoire.<br/><br/>
+        <b>4. Formation des équipes</b><br/>
+        Sensibiliser les conseillers aux profils à risque.
+        """
+    
+    story.append(Paragraph(recommandations, styles['CorpsTexte']))
+    
+    story.append(Spacer(1, 1*cm))
+    story.append(Paragraph(
+        f"<i>Rapport généré le {datetime.now().strftime('%d/%m/%Y à %H:%M')} — "
+        f"CreditScore Pro — Modèle Random Forest (AUC: 0.92)</i>",
+        ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8,
+                      textColor=colors.grey, alignment=TA_CENTER)
+    ))
+    
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+# --------------------------------------------------------------------
 # Spark & modèle
 # --------------------------------------------------------------------
 MODEL_SCHEMA = StructType([
@@ -369,7 +687,7 @@ with st.sidebar:
     - Historique : emploi & crédit
     - Antécédents de défaut
     """)
-    st.caption(f"v3.1 • Random Forest • {len(st.session_state.historique)} analyse(s)")
+    st.caption(f"v3.2 • Random Forest • {len(st.session_state.historique)} analyse(s)")
 
 # ====================================================================
 # PAGE 1 — DIAGNOSTIC
@@ -578,7 +896,7 @@ def render_diagnostic():
 def render_dashboard():
     n = len(st.session_state.historique)
     hero("Dashboard analytique", "Historique, tendances et explications des analyses",
-         [("🗄️ Persistance JSON", False), (f"📈 {n} analyse(s)", True)])
+         [("🗄️ Persistance JSON", False), (f"📈 {n} analyse(s)", True), ("📄 Export PDF", True)])
 
     records = st.session_state.historique
     if not records:
@@ -647,9 +965,9 @@ def render_dashboard():
             bins = pd.cut(df["proba_pct"], bins=[0, 20, 40, 60, 80, 100], include_lowest=True)
             hist = bins.value_counts().sort_index()
             labels = [f"{int(i.left)}–{int(i.right)}%" for i in hist.index]
-            colors = [couleur_risque(i.left) for i in hist.index]
+            colors_list = [couleur_risque(i.left) for i in hist.index]
             fig = go.Figure(go.Bar(x=labels, y=list(hist.values),
-                                   marker=dict(color=colors),
+                                   marker=dict(color=colors_list),
                                    text=list(hist.values), textposition="outside"))
             afficher_fig(style_fig(fig, 300))
         except Exception as e:
@@ -786,10 +1104,28 @@ def render_dashboard():
         st.dataframe(df_aff.sort_values("Date", ascending=False),
                      use_container_width=True, hide_index=True)
 
-    cexp, cdel, _ = st.columns([1, 1, 2])
+    # ---------- Boutons d'export ----------
+    cexp, cpdf, cdel, _ = st.columns([1, 1, 1, 2])
+    
     csv = df.to_csv(index=False).encode("utf-8")
     cexp.download_button("⬇️ Exporter CSV", data=csv,
                          file_name="historique_analyses.csv", mime="text/csv")
+    
+    if cpdf.button("📄 Générer PDF", use_container_width=True):
+        with st.spinner("Génération du rapport PDF..."):
+            try:
+                pdf_bytes = generer_rapport_pdf(df, inclure_graphiques=True)
+                st.download_button(
+                    label="⬇️ Télécharger le rapport",
+                    data=pdf_bytes,
+                    file_name=f"rapport_credit_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                )
+                st.success("✅ Rapport PDF généré avec succès !")
+            except Exception as e:
+                st.error(f"❌ Erreur lors de la génération : {e}")
+    
     with cdel:
         if st.session_state.get("confirm_clear"):
             ca, cb = st.columns(2)
@@ -802,7 +1138,7 @@ def render_dashboard():
                 st.session_state.confirm_clear = False
                 st.rerun()
         else:
-            if st.button("🗑️ Vider l'historique"):
+            if st.button("🗑️ Vider l'historique", use_container_width=True):
                 st.session_state.confirm_clear = True
                 st.rerun()
 
@@ -816,6 +1152,9 @@ def render_footer():
         Politique de confidentialité</a>
     </div>""", unsafe_allow_html=True)
 
+# --------------------------------------------------------------------
+# Routage
+# --------------------------------------------------------------------
 if page == "diagnostic":
     render_diagnostic()
 else:
