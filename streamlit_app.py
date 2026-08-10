@@ -93,14 +93,16 @@ section[data-testid="stSidebar"] .stRadio label:has(input:checked) {
 }
 section[data-testid="stSidebar"] .stRadio input[type="radio"] { display: none; }
 
-/* Hero */
+/* Hero (version compacte) */
 .hero {
     background: linear-gradient(135deg, #0B1F3A 0%, #1B3B6F 55%, #27498B 100%);
-    border-radius: 20px; padding: 2.2rem 2.4rem;
+    border-radius: 16px;
+    padding: 1.1rem 1.8rem;
     display: flex; justify-content: space-between; align-items: center;
-    flex-wrap: wrap; gap: 1rem;
-    box-shadow: 0 12px 34px rgba(11,31,58,.28);
-    position: relative; overflow: hidden; margin-bottom: 1.8rem;
+    flex-wrap: wrap; gap: .8rem;
+    box-shadow: 0 10px 26px rgba(11,31,58,.25);
+    position: relative; overflow: hidden;
+    margin: .4rem 0 1.4rem;
     animation: fadeUp .6s ease both;
 }
 .hero::before {
@@ -109,14 +111,14 @@ section[data-testid="stSidebar"] .stRadio input[type="radio"] { display: none; }
       radial-gradient(circle at 85% 20%, rgba(212,175,55,.18) 0%, transparent 45%),
       radial-gradient(circle at 10% 90%, rgba(255,255,255,.08) 0%, transparent 40%);
 }
-.hero h1 { color: #fff !important; font-size: 2.3rem; margin: 0; letter-spacing: -1px; position: relative; }
+.hero h1 { color: #fff !important; font-size: 1.65rem; margin: 0; letter-spacing: -.5px; position: relative; line-height: 1.2; }
 .hero h1 span { color: #D4AF37; }
-.hero p { color: rgba(255,255,255,.78); margin: .4rem 0 0; font-size: .98rem; position: relative; }
-.hero-badges { display: flex; gap: 8px; flex-wrap: wrap; position: relative; }
+.hero p { color: rgba(255,255,255,.78); margin: .15rem 0 0; font-size: .88rem; position: relative; }
+.hero-badges { display: flex; gap: 6px; flex-wrap: wrap; position: relative; }
 .hbadge {
     background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.18);
     backdrop-filter: blur(8px); color: #fff;
-    padding: 6px 14px; border-radius: 30px; font-size: .78rem; font-weight: 600;
+    padding: 4px 12px; border-radius: 30px; font-size: .72rem; font-weight: 600;
 }
 .hbadge.gold { background: rgba(212,175,55,.22); border-color: rgba(212,175,55,.5); color: #F0D488; }
 
