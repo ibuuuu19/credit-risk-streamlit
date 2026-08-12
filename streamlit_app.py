@@ -1428,18 +1428,24 @@ def render_dashboard():
             hist = bins.value_counts().sort_index()
             labels = [f"{int(i.left)}–{int(i.right)}%" for i in hist.index]
             colors_list = [couleur_risque(i.left) for i in hist.index]
+
             fig = go.Figure(go.Bar(
-                x=labels, y=list(hist.values),
-                marker=dict(color=colors_list, line=dict(color="rgba(255,255,255,.3)", width=1)),
-                text=list(hist.values), textposition="outside",
+                x=labels,
+                y=list(hist.values),
+                marker=dict(
+                    color=colors_list,
+                    line=dict(color="rgba(255,255,255,.3)", width=1),
+                ),
+                text=list(hist.values),
+                textposition="outside",
                 textfont=dict(color=C["text"], family="Sora"),
+                # ✅ hovertemplate se met sur la TRACE (go.Bar), PAS sur le layout
+                hovertemplate="<b>%{x}</b><br>%{y} dossier(s)<extra></extra>",
             ))
-            fig.update_layout(
-                hovertemplate="<b>%{x}</b><br>%{y} dossiers<extra></extra>"
-            )
             afficher_fig(style_fig(fig, 320))
         except Exception as e:
             st.warning(f"⚠️ Graphique indisponible : {e}")
+
         insight_box("🔎", "Interprétation",
                     f"Le risque moyen s'établit à {proba_moy:.1f}% (médiane : {df.proba_pct.median():.1f}%). "
                     + ("La distribution est concentrée sur les risques faibles."
