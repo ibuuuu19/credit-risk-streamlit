@@ -151,3 +151,4 @@ streamlit_credit_app/
 ├── .gitignore                  # exclut venv/, __pycache__, .streamlit/secrets.toml
 └── venv/                       # environnement local, jamais commité
 ```
+
