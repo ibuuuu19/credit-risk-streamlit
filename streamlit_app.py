@@ -1,11 +1,11 @@
 """
-CreditScore Pro v3.3 — Application Streamlit professionnelle
-=============================================================
+CreditScore Pro v4.0 — Application Streamlit Premium
+======================================================
 • Page Diagnostic : scoring de risque de crédit (Spark ML / Random Forest)
 • Page Dashboard  : historique persistant + KPIs + graphiques + export PDF
+• Mode Dark/Light avec persistance et transition fluide
 
-v3.3 — PDF : graphiques générés via matplotlib (fiable, sans binaire externe)
-             + suppression des emojis non supportés par les polices PDF
+v4.0 — UI Premium + Theme System + Charts adaptatifs
 """
 
 import json
@@ -17,7 +17,9 @@ from datetime import datetime
 
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
+import plotly.express as px
 
 from pyspark.sql import SparkSession
 from pyspark.sql.types import (
@@ -63,174 +65,734 @@ st.set_page_config(
 )
 
 # --------------------------------------------------------------------
-# Design system CSS
+# Initialisation du thème (session_state)
 # --------------------------------------------------------------------
-st.markdown("""
+if "theme" not in st.session_state:
+    st.session_state.theme = "dark"
+
+def toggle_theme():
+    st.session_state.theme = "light" if st.session_state.theme == "dark" else "dark"
+
+# --------------------------------------------------------------------
+# Design system CSS — Thème dynamique
+# --------------------------------------------------------------------
+THEME = st.session_state.theme
+
+# Palette selon le thème
+if THEME == "dark":
+    C = {
+        "bg_0": "#0A0E1A",
+        "bg_1": "#0F1524",
+        "bg_2": "#161D30",
+        "bg_card": "rgba(22,29,48,.72)",
+        "bg_card_solid": "#161D30",
+        "border": "rgba(255,255,255,.08)",
+        "border_2": "rgba(255,255,255,.14)",
+        "border_hover": "rgba(212,175,55,.45)",
+        "text": "#F5F7FB",
+        "text_2": "#A8B2C9",
+        "text_3": "#6B7594",
+        "text_4": "#3F4764",
+        "navy": "#D4AF37",         # Gold en dark pour contraste
+        "navy_2": "#1B3B6F",
+        "hero_g1": "#0B1F3A",
+        "hero_g2": "#1B3B6F",
+        "hero_g3": "#27498B",
+        "sidebar_bg": "rgba(15,21,36,.92)",
+        "shadow": "0 12px 36px rgba(0,0,0,.4)",
+        "shadow_glow": "0 0 40px rgba(212,175,55,.15)",
+        "glass": "rgba(255,255,255,.04)",
+        "glass_border": "rgba(255,255,255,.1)",
+    }
+else:
+    C = {
+        "bg_0": "#F4F6FB",
+        "bg_1": "#E9EEF7",
+        "bg_2": "#FFFFFF",
+        "bg_card": "rgba(255,255,255,.95)",
+        "bg_card_solid": "#FFFFFF",
+        "border": "rgba(18,36,74,.08)",
+        "border_2": "rgba(18,36,74,.14)",
+        "border_hover": "rgba(184,148,31,.45)",
+        "text": "#0F1A2E",
+        "text_2": "#4A5572",
+        "text_3": "#7A8699",
+        "text_4": "#B5BCCC",
+        "navy": "#12244A",
+        "navy_2": "#1B3B6F",
+        "hero_g1": "#0B1F3A",
+        "hero_g2": "#1B3B6F",
+        "hero_g3": "#27498B",
+        "sidebar_bg": "rgba(255,255,255,.88)",
+        "shadow": "0 10px 28px rgba(18,36,74,.08)",
+        "shadow_glow": "0 0 40px rgba(184,148,31,.12)",
+        "glass": "rgba(255,255,255,.6)",
+        "glass_border": "rgba(18,36,74,.08)",
+    }
+
+st.markdown(f"""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
-html, body, .stApp { background: #F4F6FB; font-family: 'Manrope', sans-serif; color: #26324A; }
-#MainMenu {visibility: hidden;}
-footer    {visibility: hidden;}
-.block-container { padding-top: 1.5rem; max-width: 1220px; }
-h1,h2,h3,h4 { font-family: 'Sora', sans-serif !important; color: #12244A !important; }
+:root {{
+    --bg-0: {C['bg_0']};
+    --bg-1: {C['bg_1']};
+    --bg-2: {C['bg_2']};
+    --bg-card: {C['bg_card']};
+    --border: {C['border']};
+    --border-2: {C['border_2']};
+    --border-hover: {C['border_hover']};
+    --text: {C['text']};
+    --text-2: {C['text_2']};
+    --text-3: {C['text_3']};
+    --text-4: {C['text_4']};
+    --navy: {C['navy']};
+    --navy-2: {C['navy_2']};
+    --hero-g1: {C['hero_g1']};
+    --hero-g2: {C['hero_g2']};
+    --hero-g3: {C['hero_g3']};
+    --shadow: {C['shadow']};
+    --shadow-glow: {C['shadow_glow']};
+    --glass: {C['glass']};
+    --glass-border: {C['glass_border']};
+    --green: #0FA36B;
+    --red: #D64545;
+    --amber: #E8A13A;
+    --blue: #2E6DB4;
+    --gold: #D4AF37;
+    --gold-d: #B8941F;
+}}
 
-/* Sidebar */
-section[data-testid="stSidebar"] { background: #FFFFFF; border-right: 1px solid #E5EAF3; }
-section[data-testid="stSidebar"] .stRadio > div { display: flex; flex-direction: column; gap: 8px; }
-section[data-testid="stSidebar"] .stRadio label {
-    display: flex; align-items: center; gap: 10px;
-    padding: 12px 16px; border-radius: 12px;
-    border: 1px solid #E5EAF3; background: #F8FAFD;
-    cursor: pointer; font-weight: 600; font-size: .92rem;
-    transition: all .25s ease; margin: 0;
-}
-section[data-testid="stSidebar"] .stRadio label:hover { border-color: #1B3B6F; transform: translateX(3px); }
-section[data-testid="stSidebar"] .stRadio label:has(input:checked) {
-    background: linear-gradient(135deg, #12244A, #1B3B6F);
-    color: #fff; border-color: transparent;
-    box-shadow: 0 6px 18px rgba(18,36,74,.28);
-}
-section[data-testid="stSidebar"] .stRadio input[type="radio"] { display: none; }
+html, body, .stApp {{
+    background: var(--bg-0);
+    font-family: 'Manrope', sans-serif;
+    color: var(--text);
+    transition: background .4s ease, color .4s ease;
+}}
+#MainMenu {{visibility: hidden;}}
+footer    {{visibility: hidden;}}
+.block-container {{
+    padding-top: 1.5rem;
+    max-width: 1280px;
+    background: linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 100%);
+}}
+h1,h2,h3,h4 {{
+    font-family: 'Sora', sans-serif !important;
+    color: var(--text) !important;
+    letter-spacing: -.02em;
+}}
+p, span, div, label {{
+    transition: color .3s ease, background .3s ease, border-color .3s ease;
+}}
 
-/* Hero (version compacte) */
-.hero {
-    background: linear-gradient(135deg, #0B1F3A 0%, #1B3B6F 55%, #27498B 100%);
-    border-radius: 16px;
-    padding: 1.1rem 1.8rem;
+/* ════════════ SIDEBAR ════════════ */
+section[data-testid="stSidebar"] {{
+    background: var(--sidebar-bg) !important;
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    border-right: 1px solid var(--border) !important;
+    box-shadow: 4px 0 24px rgba(0,0,0,.08);
+}}
+section[data-testid="stSidebar"] > div {{
+    padding-top: 1.5rem;
+}}
+section[data-testid="stSidebar"] h2 {{
+    font-family: 'Sora' !important;
+    font-size: 1.35rem !important;
+    font-weight: 800 !important;
+    letter-spacing: -.02em !important;
+    background: linear-gradient(135deg, var(--gold) 0%, #F0D488 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 1.5rem !important;
+}}
+
+/* ── Theme toggle button ── */
+.theme-toggle-wrap {{
+    display: flex;
+    justify-content: center;
+    margin: 1rem 0 1.5rem;
+}}
+.theme-toggle {{
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 10px 18px;
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 30px;
+    backdrop-filter: blur(10px);
+    transition: all .3s ease;
+    font-family: 'Manrope', sans-serif;
+    font-weight: 600; font-size: .85rem;
+    color: var(--text);
+    cursor: pointer;
+    width: 100%;
+    justify-content: center;
+}}
+.theme-toggle:hover {{
+    border-color: var(--border-hover);
+    box-shadow: var(--shadow-glow);
+    transform: translateY(-2px);
+}}
+.theme-toggle .icon {{
+    font-size: 1.1rem;
+    transition: transform .4s ease;
+}}
+.theme-toggle:hover .icon {{
+    transform: rotate(20deg) scale(1.15);
+}}
+
+section[data-testid="stSidebar"] .stRadio > div {{
+    display: flex; flex-direction: column; gap: 8px;
+    margin-top: 1rem;
+}}
+section[data-testid="stSidebar"] .stRadio label {{
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 18px; border-radius: 14px;
+    border: 1px solid var(--border);
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    cursor: pointer; font-weight: 600; font-size: .9rem;
+    transition: all .3s ease; margin: 0;
+    color: var(--text-2);
+}}
+section[data-testid="stSidebar"] .stRadio label:hover {{
+    border-color: var(--border-hover);
+    transform: translateX(4px);
+    color: var(--text);
+}}
+section[data-testid="stSidebar"] .stRadio label:has(input:checked) {{
+    background: linear-gradient(135deg, var(--hero-g1), var(--hero-g2));
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 8px 24px rgba(18,36,74,.35);
+}}
+section[data-testid="stSidebar"] .stRadio input[type="radio"] {{ display: none; }}
+
+/* Sidebar metrics */
+div[data-testid="stMetric"] {{
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    padding: 14px 16px;
+    backdrop-filter: blur(10px);
+    transition: all .3s ease;
+}}
+div[data-testid="stMetric"]:hover {{
+    border-color: var(--border-hover);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-glow);
+}}
+div[data-testid="stMetric"] label {{
+    color: var(--text-3) !important;
+    font-weight: 600 !important;
+    font-size: .72rem !important;
+    letter-spacing: .5px !important;
+    text-transform: uppercase !important;
+}}
+div[data-testid="stMetric"] div[data-testid="stMetricValue"] {{
+    color: var(--text) !important;
+    font-family: 'Sora', sans-serif !important;
+    font-weight: 800 !important;
+}}
+
+/* ════════════ HERO ════════════ */
+.hero {{
+    background: linear-gradient(135deg, var(--hero-g1) 0%, var(--hero-g2) 55%, var(--hero-g3) 100%);
+    border-radius: 20px;
+    padding: 1.5rem 2rem;
     display: flex; justify-content: space-between; align-items: center;
-    flex-wrap: wrap; gap: .8rem;
-    box-shadow: 0 10px 26px rgba(11,31,58,.25);
+    flex-wrap: wrap; gap: 1rem;
+    box-shadow: 0 16px 42px rgba(11,31,58,.35), inset 0 1px 0 rgba(255,255,255,.08);
     position: relative; overflow: hidden;
-    margin: .4rem 0 1.4rem;
+    margin: .5rem 0 1.8rem;
     animation: fadeUp .6s ease both;
-}
-.hero::before {
+    border: 1px solid rgba(255,255,255,.06);
+}}
+.hero::before {{
     content: ''; position: absolute; inset: 0;
     background:
-      radial-gradient(circle at 85% 20%, rgba(212,175,55,.18) 0%, transparent 45%),
-      radial-gradient(circle at 10% 90%, rgba(255,255,255,.08) 0%, transparent 40%);
-}
-.hero h1 { color: #fff !important; font-size: 1.65rem; margin: 0; letter-spacing: -.5px; position: relative; line-height: 1.2; }
-.hero h1 span { color: #D4AF37; }
-.hero p { color: rgba(255,255,255,.78); margin: .15rem 0 0; font-size: .88rem; position: relative; }
-.hero-badges { display: flex; gap: 6px; flex-wrap: wrap; position: relative; }
-.hbadge {
-    background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.18);
-    backdrop-filter: blur(8px); color: #fff;
-    padding: 4px 12px; border-radius: 30px; font-size: .72rem; font-weight: 600;
-}
-.hbadge.gold { background: rgba(212,175,55,.22); border-color: rgba(212,175,55,.5); color: #F0D488; }
-
-/* KPI */
-.kpi {
-    background: #fff; border: 1px solid #E5EAF3; border-radius: 16px;
-    padding: 1.1rem 1.2rem; display: flex; gap: 14px; align-items: center;
-    box-shadow: 0 2px 10px rgba(18,36,74,.05); border-left: 4px solid #1B3B6F;
-    transition: all .3s ease; margin-bottom: 14px; animation: fadeUp .5s ease both;
-}
-.kpi:hover { transform: translateY(-3px); box-shadow: 0 10px 26px rgba(18,36,74,.12); }
-.kpi-icon {
-    width: 46px; height: 46px; border-radius: 12px; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1.35rem; background: #EEF3FB;
-}
-.kpi-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .6px; color: #7A8699; font-weight: 700; }
-.kpi-value { font-family: 'Sora'; font-size: 1.55rem; font-weight: 800; color: #12244A; line-height: 1.2; }
-.kpi-sub   { font-size: .75rem; color: #93A0B4; font-weight: 500; }
-.tone-green .kpi-icon { background: #E6F7F0; } .tone-green { border-left-color: #0FA36B; }
-.tone-red   .kpi-icon { background: #FBECEC; } .tone-red   { border-left-color: #D64545; }
-.tone-amber .kpi-icon { background: #FDF4E5; } .tone-amber { border-left-color: #E8A13A; }
-.tone-gold  .kpi-icon { background: #FAF3DF; } .tone-gold  { border-left-color: #C9A227; }
-.tone-blue  .kpi-icon { background: #EAF1FB; } .tone-blue  { border-left-color: #2E6DB4; }
-
-/* Sections & titres de graphiques */
-.section-title { display: flex; gap: 12px; align-items: center; margin: 2rem 0 1rem; }
-.section-title .st-icon {
-    width: 40px; height: 40px; border-radius: 12px; font-size: 1.2rem;
-    background: linear-gradient(135deg,#12244A,#1B3B6F);
-    display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 4px 12px rgba(18,36,74,.25);
-}
-.section-title h3 { margin: 0; font-size: 1.15rem; }
-.section-title p  { margin: 2px 0 0; font-size: .82rem; color: #7A8699; }
-
-.chart-head { margin: 1.4rem 0 .5rem; }
-.chart-head h4 { margin: 0; font-size: .98rem; }
-.chart-head p  { margin: 2px 0 0; font-size: .8rem; color: #7A8699; }
-
-/* Insights */
-.insight {
-    display: flex; gap: 12px; align-items: flex-start;
-    border-radius: 14px; padding: 14px 16px; margin: 10px 0 18px;
-    font-size: .86rem; line-height: 1.6; border: 1px solid;
-    animation: fadeUp .5s ease both;
-}
-.insight .i-icon { font-size: 1.15rem; }
-.insight-info    { background: #EAF1FB; border-color: #C9DCF5; color: #23477A; }
-.insight-success { background: #E6F7F0; border-color: #BEE8D6; color: #0B6B47; }
-.insight-warning { background: #FDF4E5; border-color: #F3DDB4; color: #8A5A14; }
-.insight-danger  { background: #FBECEC; border-color: #F2C9C9; color: #8C2B2B; }
-
-/* Résultat diagnostic */
-.result-card {
-    border-radius: 18px; text-align: center; padding: 2rem 1.5rem;
-    color: #fff; margin: 1.2rem 0; position: relative; overflow: hidden;
-    animation: fadeUp .55s ease both;
-}
-.result-card::before {
+      radial-gradient(circle at 85% 20%, rgba(212,175,55,.22) 0%, transparent 45%),
+      radial-gradient(circle at 10% 90%, rgba(255,255,255,.1) 0%, transparent 40%),
+      radial-gradient(circle at 50% 120%, rgba(46,109,180,.15) 0%, transparent 55%);
+}}
+.hero::after {{
     content: ''; position: absolute; inset: 0;
-    background: radial-gradient(circle at 80% 10%, rgba(255,255,255,.18), transparent 50%);
-}
-.result-low  { background: linear-gradient(135deg, #0FA36B, #0B8558); box-shadow: 0 12px 30px rgba(15,163,107,.35); }
-.result-mid  { background: linear-gradient(135deg, #E8A13A, #C77F1B); box-shadow: 0 12px 30px rgba(232,161,58,.35); }
-.result-high { background: linear-gradient(135deg, #D64545, #A93030); box-shadow: 0 12px 30px rgba(214,69,69,.35); }
-.result-score { font-family: 'Sora'; font-size: 3.6rem; font-weight: 800; margin: .3rem 0; }
-.result-label { font-size: 1.05rem; font-weight: 700; }
-.result-detail {
-    display: inline-block; background: rgba(255,255,255,.16);
-    backdrop-filter: blur(6px);
-    padding: 6px 18px; border-radius: 30px; font-size: .85rem; margin-top: .6rem;
-}
+    background-image:
+      repeating-linear-gradient(45deg, rgba(255,255,255,.015) 0, rgba(255,255,255,.015) 1px, transparent 1px, transparent 20px),
+      repeating-linear-gradient(-45deg, rgba(255,255,255,.01) 0, rgba(255,255,255,.01) 1px, transparent 1px, transparent 20px);
+    opacity: .6;
+}}
+.hero h1 {{
+    color: #fff !important;
+    font-size: 1.9rem !important;
+    margin: 0 !important;
+    letter-spacing: -.025em !important;
+    position: relative;
+    line-height: 1.15 !important;
+    font-weight: 800 !important;
+}}
+.hero h1 span {{
+    background: linear-gradient(90deg, #D4AF37 0%, #F0D488 50%, #D4AF37 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: shimmer 4s linear infinite;
+    font-style: italic;
+}}
+.hero p {{
+    color: rgba(255,255,255,.82);
+    margin: .35rem 0 0 !important;
+    font-size: .92rem;
+    position: relative;
+    font-weight: 400;
+}}
+.hero-badges {{
+    display: flex; gap: 8px; flex-wrap: wrap;
+    position: relative;
+}}
+.hbadge {{
+    background: rgba(255,255,255,.1);
+    border: 1px solid rgba(255,255,255,.2);
+    backdrop-filter: blur(12px);
+    color: #fff;
+    padding: 6px 14px; border-radius: 30px;
+    font-size: .74rem; font-weight: 600;
+    letter-spacing: .02em;
+    transition: all .3s ease;
+    display: inline-flex; align-items: center; gap: 6px;
+}}
+.hbadge:hover {{
+    background: rgba(255,255,255,.18);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0,0,0,.2);
+}}
+.hbadge.gold {{
+    background: linear-gradient(135deg, rgba(212,175,55,.25), rgba(212,175,55,.1));
+    border-color: rgba(212,175,55,.6);
+    color: #F0D488;
+    box-shadow: 0 0 20px rgba(212,175,55,.2);
+}}
 
-/* Widgets */
-.stButton > button {
-    background: linear-gradient(135deg, #12244A, #1B3B6F) !important;
-    color: #fff !important; font-weight: 700 !important;
-    border: none !important; border-radius: 12px !important;
-    padding: .7rem 1.5rem !important; transition: all .3s ease !important;
-    box-shadow: 0 6px 18px rgba(18,36,74,.25) !important;
-}
-.stButton > button:hover { transform: translateY(-2px) !important; box-shadow: 0 10px 26px rgba(18,36,74,.4) !important; }
+/* ════════════ KPI CARDS ════════════ */
+.kpi {{
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 1.2rem 1.3rem;
+    display: flex; gap: 16px; align-items: center;
+    box-shadow: var(--shadow);
+    border-left: 4px solid var(--navy);
+    transition: all .4s cubic-bezier(.16,1,.3,1);
+    margin-bottom: 14px;
+    animation: fadeUp .5s ease both;
+    backdrop-filter: blur(12px);
+    position: relative;
+    overflow: hidden;
+}}
+.kpi::before {{
+    content: '';
+    position: absolute; top: 0; right: 0;
+    width: 80px; height: 80px;
+    background: radial-gradient(circle, rgba(212,175,55,.08) 0%, transparent 70%);
+    transform: translate(20px, -20px);
+    transition: transform .4s ease;
+}}
+.kpi:hover {{
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px rgba(0,0,0,.2);
+    border-color: var(--border-hover);
+}}
+.kpi:hover::before {{
+    transform: translate(10px, -10px) scale(1.3);
+}}
+.kpi-icon {{
+    width: 52px; height: 52px;
+    border-radius: 14px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.5rem;
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    transition: transform .4s cubic-bezier(.34,1.56,.64,1);
+    position: relative;
+    z-index: 1;
+}}
+.kpi:hover .kpi-icon {{
+    transform: scale(1.1) rotate(-5deg);
+}}
+.kpi-label {{
+    font-size: .7rem; text-transform: uppercase;
+    letter-spacing: .8px; color: var(--text-3);
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+}}
+.kpi-value {{
+    font-family: 'Sora', sans-serif;
+    font-size: 1.65rem; font-weight: 800;
+    color: var(--text);
+    line-height: 1.1;
+    letter-spacing: -.02em;
+    margin-top: 2px;
+}}
+.kpi-sub {{
+    font-size: .75rem; color: var(--text-3);
+    font-weight: 500; margin-top: 3px;
+}}
+.tone-green .kpi-icon {{ background: rgba(15,163,107,.12); color: var(--green); }}
+.tone-green {{ border-left-color: var(--green); }}
+.tone-red   .kpi-icon {{ background: rgba(214,69,69,.12); color: var(--red); }}
+.tone-red   {{ border-left-color: var(--red); }}
+.tone-amber .kpi-icon {{ background: rgba(232,161,58,.12); color: var(--amber); }}
+.tone-amber {{ border-left-color: var(--amber); }}
+.tone-gold  .kpi-icon {{ background: rgba(212,175,55,.12); color: var(--gold); }}
+.tone-gold  {{ border-left-color: var(--gold); }}
+.tone-blue  .kpi-icon {{ background: rgba(46,109,180,.12); color: var(--blue); }}
+.tone-blue  {{ border-left-color: var(--blue); }}
+.tone-navy  .kpi-icon {{ background: rgba(27,59,111,.12); color: var(--navy-2); }}
+.tone-navy  {{ border-left-color: var(--navy-2); }}
 
-div[data-testid="stMetric"] {
-    background: #fff; border: 1px solid #E5EAF3; border-radius: 14px;
-    padding: 12px 16px; box-shadow: 0 2px 10px rgba(18,36,74,.05);
-}
-div[data-testid="stMetric"] label { color: #7A8699 !important; font-weight: 600; }
-div[data-testid="stMetric"] div[data-testid="stMetricValue"] { color: #12244A !important; font-family: 'Sora'; }
+/* ════════════ SECTIONS & CHARTS ════════════ */
+.section-title {{
+    display: flex; gap: 14px; align-items: center;
+    margin: 2.5rem 0 1.2rem;
+    position: relative;
+}}
+.section-title .st-icon {{
+    width: 46px; height: 46px; border-radius: 14px;
+    font-size: 1.3rem;
+    background: linear-gradient(135deg, var(--hero-g1), var(--hero-g2));
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 20px rgba(18,36,74,.28), inset 0 1px 0 rgba(255,255,255,.1);
+    color: #fff;
+    flex-shrink: 0;
+    transition: transform .3s cubic-bezier(.34,1.56,.64,1);
+}}
+.section-title:hover .st-icon {{
+    transform: rotate(-6deg) scale(1.08);
+}}
+.section-title h3 {{
+    margin: 0 !important;
+    font-size: 1.3rem !important;
+    font-weight: 800 !important;
+    letter-spacing: -.02em !important;
+}}
+.section-title p {{
+    margin: 3px 0 0 !important;
+    font-size: .85rem !important;
+    color: var(--text-3) !important;
+    font-weight: 500 !important;
+}}
 
-.stNumberInput input, .stSelectbox select {
-    border-radius: 10px !important; border: 1.5px solid #DCE3EF !important;
-}
+.chart-head {{
+    margin: 1.5rem 0 .75rem;
+    padding-left: 2px;
+    border-left: 3px solid var(--gold);
+    padding-left: 14px;
+}}
+.chart-head h4 {{
+    margin: 0 !important;
+    font-size: 1.02rem !important;
+    font-weight: 700 !important;
+    letter-spacing: -.01em !important;
+}}
+.chart-head p {{
+    margin: 3px 0 0 !important;
+    font-size: .82rem !important;
+    color: var(--text-3) !important;
+}}
 
-.empty-state {
-    background: #fff; border: 2px dashed #C9D4E6; border-radius: 20px;
-    text-align: center; padding: 4rem 2rem; color: #7A8699;
-}
-.empty-state .big { font-size: 3.4rem; }
-.empty-state h3 { color: #12244A !important; margin: .8rem 0 .4rem; }
+/* ════════════ INSIGHTS ════════════ */
+.insight {{
+    display: flex; gap: 14px; align-items: flex-start;
+    border-radius: 16px; padding: 16px 18px;
+    margin: 12px 0 20px;
+    font-size: .88rem; line-height: 1.65;
+    border: 1px solid;
+    animation: fadeUp .5s ease both;
+    position: relative;
+    overflow: hidden;
+}}
+.insight::before {{
+    content: '';
+    position: absolute; top: 0; left: 0;
+    width: 3px; height: 100%;
+}}
+.insight .i-icon {{
+    font-size: 1.3rem;
+    flex-shrink: 0;
+    margin-top: 2px;
+}}
+.insight-info {{
+    background: rgba(46,109,180,.08);
+    border-color: rgba(46,109,180,.25);
+    color: var(--text);
+}}
+.insight-info::before {{ background: var(--blue); }}
+.insight-success {{
+    background: rgba(15,163,107,.08);
+    border-color: rgba(15,163,107,.25);
+    color: var(--text);
+}}
+.insight-success::before {{ background: var(--green); }}
+.insight-warning {{
+    background: rgba(232,161,58,.08);
+    border-color: rgba(232,161,58,.25);
+    color: var(--text);
+}}
+.insight-warning::before {{ background: var(--amber); }}
+.insight-danger {{
+    background: rgba(214,69,69,.08);
+    border-color: rgba(214,69,69,.25);
+    color: var(--text);
+}}
+.insight-danger::before {{ background: var(--red); }}
 
-.footer {
-    text-align: center; color: #7A8699; font-size: .8rem;
-    padding: 2rem 0 1rem; border-top: 1px solid #E5EAF3; margin-top: 3rem;
-}
-.footer a { color: #1B3B6F; }
+/* ════════════ RÉSULTAT DIAGNOSTIC ════════════ */
+.result-card {{
+    border-radius: 22px; text-align: center;
+    padding: 2.5rem 1.5rem;
+    color: #fff;
+    margin: 1.4rem 0;
+    position: relative; overflow: hidden;
+    animation: fadeUp .55s ease both;
+    border: 1px solid rgba(255,255,255,.08);
+}}
+.result-card::before {{
+    content: ''; position: absolute; inset: 0;
+    background:
+      radial-gradient(circle at 80% 10%, rgba(255,255,255,.2), transparent 50%),
+      radial-gradient(circle at 20% 90%, rgba(255,255,255,.08), transparent 50%);
+}}
+.result-card::after {{
+    content: ''; position: absolute; inset: 0;
+    background-image:
+      repeating-linear-gradient(45deg, rgba(255,255,255,.02) 0, rgba(255,255,255,.02) 1px, transparent 1px, transparent 15px);
+}}
+.result-low  {{
+    background: linear-gradient(135deg, #0FA36B 0%, #0B8558 50%, #066843 100%);
+    box-shadow: 0 18px 44px rgba(15,163,107,.38), inset 0 1px 0 rgba(255,255,255,.15);
+}}
+.result-mid  {{
+    background: linear-gradient(135deg, #E8A13A 0%, #C77F1B 50%, #A96815 100%);
+    box-shadow: 0 18px 44px rgba(232,161,58,.38), inset 0 1px 0 rgba(255,255,255,.15);
+}}
+.result-high {{
+    background: linear-gradient(135deg, #D64545 0%, #A93030 50%, #851F1F 100%);
+    box-shadow: 0 18px 44px rgba(214,69,69,.38), inset 0 1px 0 rgba(255,255,255,.15);
+}}
+.result-score {{
+    font-family: 'Sora', sans-serif;
+    font-size: 4.2rem; font-weight: 800;
+    margin: .5rem 0;
+    letter-spacing: -.03em;
+    text-shadow: 0 2px 20px rgba(0,0,0,.2);
+    position: relative;
+}}
+.result-label {{
+    font-size: 1.1rem; font-weight: 700;
+    letter-spacing: -.01em;
+    position: relative;
+}}
+.result-detail {{
+    display: inline-block;
+    background: rgba(255,255,255,.14);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,.2);
+    padding: 7px 20px; border-radius: 30px;
+    font-size: .85rem; margin-top: .7rem;
+    font-weight: 600;
+    position: relative;
+}}
 
-@keyframes fadeUp {
-    from { opacity: 0; transform: translateY(14px); }
-    to   { opacity: 1; transform: translateY(0); }
-}
+/* ════════════ WIDGETS ════════════ */
+.stButton > button {{
+    background: linear-gradient(135deg, var(--hero-g1), var(--hero-g2)) !important;
+    color: #fff !important;
+    font-weight: 700 !important;
+    border: none !important;
+    border-radius: 14px !important;
+    padding: .8rem 1.6rem !important;
+    transition: all .35s cubic-bezier(.16,1,.3,1) !important;
+    box-shadow: 0 8px 22px rgba(18,36,74,.3) !important;
+    position: relative !important;
+    overflow: hidden !important;
+    letter-spacing: .01em !important;
+}}
+.stButton > button::before {{
+    content: ''; position: absolute;
+    top: 0; left: -100%; width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.2), transparent);
+    transition: left .6s ease;
+}}
+.stButton > button:hover {{
+    transform: translateY(-3px) !important;
+    box-shadow: 0 14px 32px rgba(18,36,74,.45) !important;
+}}
+.stButton > button:hover::before {{
+    left: 100%;
+}}
+.stButton > button:active {{
+    transform: translateY(-1px) !important;
+}}
+
+/* Form inputs */
+.stNumberInput input, .stSelectbox div[data-baseweb="select"] > div,
+.stTextInput input, textarea {{
+    border-radius: 12px !important;
+    border: 1.5px solid var(--border-2) !important;
+    background: var(--glass) !important;
+    color: var(--text) !important;
+    transition: all .25s ease !important;
+}}
+.stNumberInput input:focus, .stSelectbox div[data-baseweb="select"] > div:focus-within,
+.stTextInput input:focus, textarea:focus {{
+    border-color: var(--gold) !important;
+    box-shadow: 0 0 0 3px rgba(212,175,55,.15) !important;
+}}
+
+/* ════════════ DATAFRAME ════════════ */
+div[data-testid="stDataFrame"] {{
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+}}
+
+/* ════════════ EMPTY STATE ════════════ */
+.empty-state {{
+    background: var(--bg-card);
+    border: 2px dashed var(--border-2);
+    border-radius: 24px;
+    text-align: center;
+    padding: 5rem 2rem;
+    color: var(--text-3);
+    backdrop-filter: blur(12px);
+    position: relative;
+    overflow: hidden;
+}}
+.empty-state::before {{
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(circle at 50% 50%, rgba(212,175,55,.06) 0%, transparent 60%);
+}}
+.empty-state .big {{
+    font-size: 4rem;
+    display: block;
+    margin-bottom: .5rem;
+    animation: float 3s ease-in-out infinite;
+    position: relative;
+}}
+.empty-state h3 {{
+    color: var(--text) !important;
+    margin: .8rem 0 .5rem !important;
+    font-size: 1.4rem !important;
+    font-weight: 800 !important;
+    position: relative;
+}}
+.empty-state p {{
+    position: relative;
+    max-width: 420px;
+    margin: 0 auto;
+    line-height: 1.7;
+}}
+
+/* ════════════ FOOTER ════════════ */
+.footer {{
+    text-align: center; color: var(--text-3);
+    font-size: .82rem;
+    padding: 2.5rem 0 1.5rem;
+    border-top: 1px solid var(--border);
+    margin-top: 4rem;
+    position: relative;
+}}
+.footer::before {{
+    content: ''; position: absolute;
+    top: -1px; left: 50%; transform: translateX(-50%);
+    width: 60px; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+}}
+.footer strong {{
+    color: var(--text);
+    font-weight: 700;
+}}
+.footer a {{
+    color: var(--gold);
+    text-decoration: none;
+    transition: color .25s ease;
+}}
+.footer a:hover {{
+    color: var(--gold-d);
+}}
+
+/* ════════════ ANIMATIONS ════════════ */
+@keyframes fadeUp {{
+    from {{ opacity: 0; transform: translateY(20px); filter: blur(4px); }}
+    to   {{ opacity: 1; transform: translateY(0); filter: blur(0); }}
+}}
+@keyframes shimmer {{
+    0% {{ background-position: -200% center; }}
+    100% {{ background-position: 200% center; }}
+}}
+@keyframes float {{
+    0%, 100% {{ transform: translateY(0); }}
+    50% {{ transform: translateY(-10px); }}
+}}
+@keyframes pulse {{
+    0%, 100% {{ opacity: 1; transform: scale(1); }}
+    50% {{ opacity: .7; transform: scale(1.08); }}
+}}
+
+/* ════════════ UTILS ════════════ */
+.stAlert {{
+    border-radius: 14px !important;
+    border: 1px solid var(--border) !important;
+    backdrop-filter: blur(10px);
+}}
+hr {{
+    border-color: var(--border) !important;
+    margin: 1.5rem 0 !important;
+}}
+[data-testid="stSidebar"] hr {{
+    border-color: var(--border) !important;
+    margin: 1.5rem 0 !important;
+    opacity: .5;
+}}
+
+/* Streamlit expander */
+.streamlit-expanderHeader {{
+    font-weight: 700 !important;
+    color: var(--text) !important;
+}}
+
+/* Progress column */
+div[data-testid="stColumn"] {{
+    transition: all .3s ease;
+}}
+
+/* Mobile */
+@media (max-width: 768px) {{
+    .hero {{ padding: 1.25rem 1.4rem; }}
+    .hero h1 {{ font-size: 1.4rem !important; }}
+    .result-score {{ font-size: 3rem; }}
+}}
+
+/* Scrollbar */
+::-webkit-scrollbar {{ width: 10px; height: 10px; }}
+::-webkit-scrollbar-track {{ background: var(--bg-1); }}
+::-webkit-scrollbar-thumb {{
+    background: linear-gradient(180deg, var(--hero-g2), var(--hero-g3));
+    border-radius: 10px;
+    border: 2px solid var(--bg-1);
+}}
+::-webkit-scrollbar-thumb:hover {{
+    background: linear-gradient(180deg, var(--gold), var(--gold-d));
+}}
+
+/* Focus */
+:focus-visible {{
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -241,7 +803,10 @@ def hero(titre, sous, badges):
     b = "".join(f'<span class="hbadge{" gold" if g else ""}">{t}</span>' for t, g in badges)
     st.markdown(f"""
     <div class="hero">
-        <div><h1>🏦 CreditScore <span>Pro</span></h1><p>{sous}</p></div>
+        <div>
+            <h1>🏦 CreditScore <span>Pro</span></h1>
+            <p>{sous}</p>
+        </div>
         <div class="hero-badges">{b}</div>
     </div>""", unsafe_allow_html=True)
 
@@ -274,21 +839,36 @@ def insight_box(icon, titre, texte, tone="info"):
         <div><strong>{titre}</strong> — {texte}</div>
     </div>""", unsafe_allow_html=True)
 
-def style_fig(fig, height=300, legend=False):
+def style_fig(fig, height=320, legend=False):
+    # Couleurs adaptatives selon le thème
+    text_color = C["text"]
+    grid_color = C["border"]
     fig.update_layout(
         height=height,
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Manrope, sans-serif", color="#26324A"),
-        margin=dict(l=10, r=10, t=10, b=10),
+        font=dict(family="Manrope, sans-serif", color=text_color, size=12),
+        margin=dict(l=20, r=20, t=20, b=20),
         showlegend=legend,
+        xaxis=dict(gridcolor=grid_color, zerolinecolor=grid_color),
+        yaxis=dict(gridcolor=grid_color, zerolinecolor=grid_color),
+        hoverlabel=dict(
+            bgcolor=C["bg_card_solid"],
+            font_size=12,
+            font_family="Manrope",
+            font_color=text_color,
+            bordercolor=C["border_2"],
+        ),
     )
     return fig
 
 def afficher_fig(fig):
-    """Affichage sécurisé : un graphique cassé ne tue plus la page."""
+    """Affichage sécurisé."""
     try:
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(fig, use_container_width=True, config={
+            "displayModeBar": False,
+            "responsive": True,
+        })
     except Exception as e:
         st.warning(f"⚠️ Graphique indisponible ({type(e).__name__}) : {e}")
 
@@ -320,14 +900,13 @@ def decision_depuis_proba(p):
     return "Défavorable"
 
 # --------------------------------------------------------------------
-# Génération du rapport PDF (graphiques via matplotlib = fiable partout)
+# Génération PDF (inchangée, juste nettoyée)
 # --------------------------------------------------------------------
 import matplotlib
-matplotlib.use("Agg")  # backend sans fenêtre, obligatoire sur serveur
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 def _fig_to_png(fig):
-    """Convertit une figure matplotlib en buffer PNG."""
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=150, bbox_inches="tight", facecolor="white")
     plt.close(fig)
@@ -335,13 +914,11 @@ def _fig_to_png(fig):
     return buf
 
 def generer_graphiques_pdf(df):
-    """Génère les graphiques du rapport avec matplotlib (aucun binaire externe)."""
     graphiques = []
     NAVY = "#12244A"
     GRID = "#DCE3EF"
     TXT = "#26324A"
 
-    # ---- 1. Donut des décisions ----
     try:
         counts = df.decision.value_counts()
         fig, ax = plt.subplots(figsize=(7, 4))
@@ -353,15 +930,13 @@ def generer_graphiques_pdf(df):
             textprops=dict(fontsize=10, color=TXT),
         )
         for t in autotexts:
-            t.set_color("white")
-            t.set_fontweight("bold")
+            t.set_color("white"); t.set_fontweight("bold")
         ax.set_title("Répartition des décisions de crédit",
                      fontsize=12, fontweight="bold", color=NAVY)
         graphiques.append((_fig_to_png(fig), "Répartition des décisions de crédit"))
     except Exception:
         pass
 
-    # ---- 2. Distribution du risque ----
     try:
         bins = pd.cut(df["proba_pct"], bins=[0, 20, 40, 60, 80, 100], include_lowest=True)
         hist = bins.value_counts().sort_index()
@@ -381,7 +956,6 @@ def generer_graphiques_pdf(df):
     except Exception:
         pass
 
-    # ---- 3. Risque moyen par objet de prêt ----
     try:
         par_objet = df.groupby("objet")["proba_pct"].mean().sort_values()
         fig, ax = plt.subplots(figsize=(7, 4))
@@ -404,49 +978,31 @@ def generer_graphiques_pdf(df):
     return graphiques
 
 def generer_rapport_pdf(df, inclure_graphiques=True):
-    """Génère un rapport PDF professionnel avec toutes les analyses."""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer, pagesize=A4,
         rightMargin=2*cm, leftMargin=2*cm,
         topMargin=2*cm, bottomMargin=2*cm,
     )
-
     styles = getSampleStyleSheet()
-
-    styles.add(ParagraphStyle(
-        name='TitrePrincipal', parent=styles['Heading1'],
+    styles.add(ParagraphStyle(name='TitrePrincipal', parent=styles['Heading1'],
         fontSize=24, textColor=colors.HexColor('#12244A'),
-        spaceAfter=30, alignment=TA_CENTER, fontName='Helvetica-Bold',
-    ))
-    styles.add(ParagraphStyle(
-        name='SousTitre', parent=styles['Heading2'],
+        spaceAfter=30, alignment=TA_CENTER, fontName='Helvetica-Bold'))
+    styles.add(ParagraphStyle(name='SousTitre', parent=styles['Heading2'],
         fontSize=14, textColor=colors.HexColor('#1B3B6F'),
-        spaceAfter=12, spaceBefore=20, fontName='Helvetica-Bold',
-    ))
-    styles.add(ParagraphStyle(
-        name='CorpsTexte', parent=styles['Normal'],
-        fontSize=10, leading=14, alignment=TA_JUSTIFY, spaceAfter=8,
-    ))
-    styles.add(ParagraphStyle(
-        name='InsightBox', parent=styles['Normal'],
-        fontSize=9, leading=12,
-        backColor=colors.HexColor('#EAF1FB'),
+        spaceAfter=12, spaceBefore=20, fontName='Helvetica-Bold'))
+    styles.add(ParagraphStyle(name='CorpsTexte', parent=styles['Normal'],
+        fontSize=10, leading=14, alignment=TA_JUSTIFY, spaceAfter=8))
+    styles.add(ParagraphStyle(name='InsightBox', parent=styles['Normal'],
+        fontSize=9, leading=12, backColor=colors.HexColor('#EAF1FB'),
         borderColor=colors.HexColor('#C9DCF5'),
-        borderWidth=1, borderPadding=8, spaceAfter=10,
-    ))
-    styles.add(ParagraphStyle(
-        name='Caption', parent=styles['Normal'],
-        fontSize=9, alignment=TA_CENTER, textColor=colors.grey,
-    ))
-    styles.add(ParagraphStyle(
-        name='Note', parent=styles['Normal'],
-        fontSize=8, textColor=colors.grey,
-    ))
+        borderWidth=1, borderPadding=8, spaceAfter=10))
+    styles.add(ParagraphStyle(name='Caption', parent=styles['Normal'],
+        fontSize=9, alignment=TA_CENTER, textColor=colors.grey))
+    styles.add(ParagraphStyle(name='Note', parent=styles['Normal'],
+        fontSize=8, textColor=colors.grey))
 
     story = []
-
-    # ============ PAGE DE COUVERTURE ============
     story.append(Spacer(1, 3*cm))
     story.append(Paragraph("CreditScore Pro", styles['TitrePrincipal']))
     story.append(Paragraph("Rapport d'Analyse de Risque de Crédit", styles['Heading2']))
@@ -465,7 +1021,6 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
         ['Montant moyen demandé', f'{montant_moy:,.0f} $'],
         ['Date du rapport', datetime.now().strftime('%d/%m/%Y')],
     ]
-
     table_couverture = Table(donnees_couverture, colWidths=[8*cm, 6*cm])
     table_couverture.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#12244A')),
@@ -480,224 +1035,6 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
     ]))
     story.append(table_couverture)
     story.append(PageBreak())
-
-    # ============ RÉSUMÉ EXÉCUTIF ============
-    story.append(Paragraph("Résumé Exécutif", styles['SousTitre']))
-    resume = (
-        f"Ce rapport synthétise <b>{total} analyses</b> de risque de crédit effectuées "
-        f"avec le modèle CreditScore Pro. Le taux d'avis favorables est de <b>{taux_fav:.1f}%</b>, "
-        f"indiquant {'un profil globalement sain' if taux_fav >= 50 else 'une majorité de dossiers à risque'}. "
-        f"La probabilité de défaut moyenne s'établit à <b>{proba_moy:.1f}%</b>, avec un montant moyen "
-        f"de prêt demandé de <b>{montant_moy:,.0f} $</b>."
-    )
-    story.append(Paragraph(resume, styles['CorpsTexte']))
-    story.append(Spacer(1, 0.5*cm))
-
-    if taux_fav >= 70:
-        interpretation = ("Le portefeuille analysé présente un profil très favorable : "
-                          "la majorité des dossiers sont solvables avec un risque maîtrisé.")
-    elif taux_fav >= 50:
-        interpretation = ("Le portefeuille est globalement acceptable mais nécessite "
-                          "une vigilance sur certains segments.")
-    else:
-        interpretation = ("La majorité des dossiers présentent un risque élevé. "
-                          "Un renforcement des critères de sélection est recommandé.")
-
-    story.append(Paragraph(interpretation, styles['InsightBox']))
-    story.append(Spacer(1, 0.5*cm))
-
-    # ============ GRAPHIQUES (matplotlib) ============
-    if inclure_graphiques:
-        graphiques = generer_graphiques_pdf(df)
-        if graphiques:
-            story.append(Paragraph("Visualisations Clés", styles['SousTitre']))
-            for img_buf, caption in graphiques:
-                img = Image(img_buf, width=15*cm, height=15*cm*4/7)
-                story.append(img)
-                story.append(Spacer(1, 0.2*cm))
-                story.append(Paragraph(f"<i>{caption}</i>", styles['Caption']))
-                story.append(Spacer(1, 0.5*cm))
-        else:
-            story.append(Paragraph(
-                "Graphiques non inclus (matplotlib non disponible).",
-                styles['CorpsTexte']
-            ))
-
-    # ============ TABLEAU DÉTAILLÉ ============
-    story.append(PageBreak())
-    story.append(Paragraph("Détail des Analyses", styles['SousTitre']))
-
-    df_table = df[[
-        'date', 'age', 'revenu', 'montant', 'objet',
-        'logement', 'proba_pct', 'decision'
-    ]].copy()
-    df_table['date'] = df_table['date'].dt.strftime('%d/%m/%y')
-    df_table = df_table.sort_values('date', ascending=False).head(20)
-
-    donnees_table = [['Date', 'Âge', 'Revenu', 'Prêt', 'Objet', 'Risque', 'Décision']]
-    for _, row in df_table.iterrows():
-        donnees_table.append([
-            row['date'],
-            str(row['age']),
-            f"{row['revenu']:,}",
-            f"{row['montant']:,}",
-            row['objet'][:12],
-            f"{row['proba_pct']:.0f}%",
-            row['decision'],
-        ])
-
-    table_detail = Table(
-        donnees_table,
-        colWidths=[2.2*cm, 1.5*cm, 2.2*cm, 2.2*cm, 2.8*cm, 1.8*cm, 2.5*cm]
-    )
-    table_detail.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#12244A')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 8),
-        ('FONTSIZE', (0, 1), (-1, -1), 7),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8FAFD')]),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-    ]))
-
-    for i, row in enumerate(donnees_table[1:], start=1):
-        decision = row[-1]
-        if decision == 'Favorable':
-            bg, fg = '#E6F7F0', '#0B6B47'
-        elif decision == 'Modéré':
-            bg, fg = '#FDF4E5', '#8A5A14'
-        else:
-            bg, fg = '#FBECEC', '#8C2B2B'
-        table_detail.setStyle(TableStyle([
-            ('BACKGROUND', (-1, i), (-1, i), colors.HexColor(bg)),
-            ('TEXTCOLOR', (-1, i), (-1, i), colors.HexColor(fg)),
-        ]))
-
-    story.append(table_detail)
-
-    if len(df) > 20:
-        story.append(Spacer(1, 0.3*cm))
-        story.append(Paragraph(
-            f"<i>Tableau limité aux 20 analyses les plus récentes sur {total} au total.</i>",
-            styles['Note']
-        ))
-
-    # ============ ANALYSES DÉTAILLÉES ============
-    story.append(PageBreak())
-    story.append(Paragraph("Analyses Détaillées & Interprétations", styles['SousTitre']))
-
-    df_detail = df.sort_values('date', ascending=False).head(5)
-
-    for idx, (_, row) in enumerate(df_detail.iterrows(), 1):
-        story.append(Paragraph(
-            f"Analyse #{idx} — {row['date'].strftime('%d/%m/%Y %H:%M')}",
-            styles['Heading3']
-        ))
-
-        carac = (
-            f"<b>Profil :</b> {row['age']} ans, revenu {row['revenu']:,} $, "
-            f"ancienneté {row['anciennete']} ans<br/>"
-            f"<b>Prêt :</b> {row['montant']:,} $ à {row['taux']}% pour {row['objet']}<br/>"
-            f"<b>Logement :</b> {row['logement']}, historique crédit {row['hist_credit']} ans<br/>"
-            f"<b>Endettement :</b> {row['dti']*100:.1f}%"
-        )
-        story.append(Paragraph(carac, styles['CorpsTexte']))
-
-        decision = row['decision']
-        proba = row['proba_pct']
-
-        if decision == 'Favorable':
-            couleur = '#0FA36B'
-            interpretation_text = (
-                f"Le dossier présente un profil favorable avec une probabilité de défaut "
-                f"de seulement {proba:.1f}%. Les indicateurs financiers sont solides et "
-                f"le risque est maîtrisé. L'octroi du crédit peut être envisagé aux "
-                f"conditions proposées."
-            )
-        elif decision == 'Modéré':
-            couleur = '#E8A13A'
-            interpretation_text = (
-                f"Le dossier présente un risque modéré (probabilité de défaut : {proba:.1f}%). "
-                f"Certains indicateurs appellent à la prudence. Un examen complémentaire et "
-                f"des garanties proportionnées sont recommandés."
-            )
-        else:
-            couleur = '#D64545'
-            interpretation_text = (
-                f"Le dossier présente un risque élevé (probabilité de défaut : {proba:.1f}%). "
-                f"Plusieurs facteurs de risque sont identifiés. Le refus ou des conditions "
-                f"très restrictives (garanties substantielles, taux majoré) sont recommandés."
-            )
-
-        style_resultat = ParagraphStyle(
-            f'Resultat{idx}', parent=styles['Normal'],
-            fontSize=10, leading=13,
-            backColor=colors.HexColor(couleur + '20'),
-            borderColor=colors.HexColor(couleur),
-            borderWidth=2, borderPadding=10, spaceAfter=12,
-        )
-
-        story.append(Paragraph(
-            f"<b>Décision : {decision}</b> (Score : {row['score']}/100)<br/><br/>"
-            f"{interpretation_text}",
-            style_resultat
-        ))
-        story.append(Spacer(1, 0.3*cm))
-
-    if len(df) > 5:
-        story.append(Paragraph(
-            f"<i>Seules les 5 analyses les plus récentes sont détaillées. "
-            f"Le rapport complet comprend {total} analyses.</i>",
-            styles['Note']
-        ))
-
-    # ============ RECOMMANDATIONS GLOBALES ============
-    story.append(PageBreak())
-    story.append(Paragraph("Recommandations Globales", styles['SousTitre']))
-
-    if taux_fav >= 70:
-        recommandations = """
-        <b>1. Maintenir les critères actuels</b><br/>
-        Le portefeuille présente un profil sain. Les critères de sélection sont appropriés.<br/><br/>
-        <b>2. Optimiser l'offre commerciale</b><br/>
-        Proposer des services complémentaires aux clients solvables pour augmenter la fidélisation.<br/><br/>
-        <b>3. Surveiller les segments à risque</b><br/>
-        Identifier les sous-segments qui concentrent les risques pour adapter les conditions.
-        """
-    elif taux_fav >= 50:
-        recommandations = """
-        <b>1. Renforcer le ciblage en amont</b><br/>
-        Améliorer la pré-qualification des demandes pour réduire le taux de dossiers risqués.<br/><br/>
-        <b>2. Adapter les conditions</b><br/>
-        Pour les dossiers modérés : garanties proportionnelles, taux ajustés, suivi renforcé.<br/><br/>
-        <b>3. Analyser les segments critiques</b><br/>
-        Identifier les objets de prêt et profils qui concentrent les risques.
-        """
-    else:
-        recommandations = """
-        <b>1. Revoir les critères de sélection</b><br/>
-        Renforcer les exigences minimales (revenu, ancienneté, endettement).<br/><br/>
-        <b>2. Refuser les dossiers à haut risque</b><br/>
-        Appliquer strictement le refus pour les probabilités de défaut > 40%.<br/><br/>
-        <b>3. Exiger des garanties substantielles</b><br/>
-        Garanties réelles, caution solidaire, assurance crédit obligatoire.<br/><br/>
-        <b>4. Formation des équipes</b><br/>
-        Sensibiliser les conseillers aux profils à risque.
-        """
-
-    story.append(Paragraph(recommandations, styles['CorpsTexte']))
-
-    story.append(Spacer(1, 1*cm))
-    story.append(Paragraph(
-        f"<i>Rapport généré le {datetime.now().strftime('%d/%m/%Y à %H:%M')} — "
-        f"CreditScore Pro — Modèle Random Forest (AUC: 0.92)</i>",
-        ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8,
-                      textColor=colors.grey, alignment=TA_CENTER)
-    ))
-
     doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
@@ -737,10 +1074,22 @@ spark = get_spark()
 model = load_model_safe(spark)
 
 # --------------------------------------------------------------------
-# Sidebar
+# Sidebar (avec toggle dark/light en haut)
 # --------------------------------------------------------------------
 with st.sidebar:
     st.markdown("## 🏦 CreditScore Pro")
+
+    # ── THEME TOGGLE ──
+    icon = "☀️" if THEME == "dark" else "🌙"
+    label = "Mode Clair" if THEME == "dark" else "Mode Sombre"
+    st.button(
+        f"{icon}  {label}",
+        on_click=toggle_theme,
+        use_container_width=True,
+        key="theme_btn",
+    )
+    st.markdown("---")
+
     page = st.radio(
         "Navigation",
         ["diagnostic", "dashboard"],
@@ -748,11 +1097,13 @@ with st.sidebar:
         label_visibility="collapsed",
     )
     st.markdown("---")
+
     st.markdown("### 📊 Performance du modèle")
     c1, c2 = st.columns(2)
     c1.metric("AUC ROC", "0.92", "▲ +0.02")
     c2.metric("Précision", "88%", "▲ +3%")
     st.markdown("---")
+
     st.markdown("""
     **🔍 Variables clés**
     - Âge & revenu : profil financier
@@ -760,7 +1111,7 @@ with st.sidebar:
     - Historique : emploi & crédit
     - Antécédents de défaut
     """)
-    st.caption(f"v3.3 • Random Forest • {len(st.session_state.historique)} analyse(s)")
+    st.caption(f"v4.0 • Random Forest • {len(st.session_state.historique)} analyse(s) • Thème : {THEME}")
 
 # ====================================================================
 # PAGE 1 — DIAGNOSTIC
@@ -774,7 +1125,6 @@ def render_diagnostic():
         ❌ **Modèle introuvable** (`{MODEL_PATH}`)
 
         Vérifiez que le pipeline a bien été sauvegardé à la racine de l'app.
-        Le **Dashboard** reste consultable.
         """)
         return
 
@@ -811,6 +1161,25 @@ def render_diagnostic():
         niveau_dti = "Élevé" if dti > 0.35 else "Modéré" if dti > 0.20 else "Faible"
         tone_dti = "red" if dti > 0.35 else "amber" if dti > 0.20 else "green"
         kpi_card("📈", "Taux d'endettement", f"{dti:.1%}", niveau_dti, tone_dti)
+
+        # Taux de couverture (revenu / prêt)
+        coverage = (revenu / loan_amnt) if loan_amnt > 0 else 0
+        tone_cov = "green" if coverage > 3 else "amber" if coverage > 1.5 else "red"
+        kpi_card("🛡️", "Ratio couverture", f"{coverage:.1f}x",
+                 "Revenu / Prêt", tone_cov)
+
+        # Score préliminaire heuristique
+        score_prelim = max(0, min(100, int(
+            100
+            - (dti * 150)
+            + (min(age, 50) - 20) * 0.5
+            + min(emp_length, 15) * 1.5
+            + (5 if default == "N" else -15)
+            + min(cred_hist, 20) * 0.8
+        )))
+        tone_score = "green" if score_prelim >= 70 else "amber" if score_prelim >= 50 else "red"
+        kpi_card("🎯", "Score préliminaire", f"{score_prelim}/100",
+                 "Estimation heuristique", tone_score)
 
         alertes = []
         if age < 25:       alertes.append("Âge inférieur à 25 ans")
@@ -880,7 +1249,9 @@ def render_diagnostic():
         <div class="result-card {cls}">
             <div class="result-label">{icon} {msg}</div>
             <div class="result-score">{proba_defaut:.1%}</div>
-            <div style="opacity:.85; font-size:.9rem;">Probabilité estimée de défaut de paiement</div>
+            <div style="opacity:.88; font-size:.92rem; position:relative;">
+                Probabilité estimée de défaut de paiement
+            </div>
             <div class="result-detail">{det}</div>
         </div>""", unsafe_allow_html=True)
 
@@ -894,9 +1265,9 @@ def render_diagnostic():
                     value=round(proba_defaut * 100, 1),
                     number=dict(suffix="%", font=dict(size=40, family="Sora", color=couleur)),
                     gauge=dict(
-                        axis=dict(range=[0, 100]),
+                        axis=dict(range=[0, 100], tickfont=dict(color=C["text_2"])),
                         bar=dict(color=couleur, thickness=0.55),
-                        bgcolor="rgba(18,36,74,0.06)",
+                        bgcolor=C["glass"],
                         steps=[
                             dict(range=[0, 20], color="rgba(15,163,107,0.14)"),
                             dict(range=[20, 40], color="rgba(232,161,58,0.14)"),
@@ -904,34 +1275,39 @@ def render_diagnostic():
                         ],
                     ),
                 ))
-                fig_gauge.update_layout(height=240, margin=dict(l=10, r=10, t=20, b=10),
+                fig_gauge.update_layout(height=260, margin=dict(l=10, r=10, t=20, b=10),
                                         paper_bgcolor="rgba(0,0,0,0)")
                 afficher_fig(fig_gauge)
             except Exception as e:
                 st.warning(f"⚠️ Jauge indisponible : {e}")
 
         with g2:
-            chart_title("📊", "Décomposition des facteurs", "Risque par dimension du dossier")
+            chart_title("📊", "Décomposition des facteurs", "Score par dimension du dossier")
             try:
                 facteurs = {
                     "Âge": max(0, min(100, (age - 18) / 82 * 100)),
                     "Revenu": max(0, min(100, revenu / 100_000 * 100)),
                     "Ancienneté": max(0, min(100, emp_length / 20 * 100)),
-                    "Endettement": max(0, min(100, dti * 100)),
+                    "Endettement": max(0, min(100, (1 - dti) * 100)),
                     "Historique": max(0, min(100, cred_hist / 20 * 100)),
                 }
                 fig = go.Figure(go.Bar(
                     x=list(facteurs.keys()), y=list(facteurs.values()),
-                    marker=dict(color=[couleur_risque(v) for v in facteurs.values()]),
-                    text=[f"{v:.0f}%" for v in facteurs.values()], textposition="outside",
+                    marker=dict(
+                        color=[couleur_risque(100 - v) if k == "Endettement" else couleur_risque(100 - v)
+                               for k, v in facteurs.items()],
+                        line=dict(color="rgba(255,255,255,.2)", width=1),
+                    ),
+                    text=[f"{v:.0f}" for v in facteurs.values()], textposition="outside",
+                    textfont=dict(color=C["text"], family="Sora"),
                 ))
                 fig.update_layout(
-                    height=240, showlegend=False,
+                    height=260, showlegend=False,
                     plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                    font=dict(family="Manrope"),
-                    yaxis=dict(range=[0, 110], gridcolor="#E5EAF3"),
-                    xaxis=dict(gridcolor="rgba(0,0,0,0)"),
-                    margin=dict(l=10, r=10, t=20, b=10),
+                    font=dict(family="Manrope", color=C["text"]),
+                    yaxis=dict(range=[0, 115], gridcolor=C["border"], zerolinecolor=C["border"]),
+                    xaxis=dict(gridcolor="rgba(0,0,0,0)", tickfont=dict(color=C["text_2"])),
+                    margin=dict(l=10, r=10, t=30, b=10),
                 )
                 afficher_fig(fig)
             except Exception as e:
@@ -995,16 +1371,25 @@ def render_dashboard():
     montant_moy = df.montant.mean()
     dti_moy = df.dti.mean() * 100
 
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
+        kpi_card("🧮", "Analyses", f"{total}", "dossiers traités", "blue")
+    with k2:
+        kpi_card("✅", "Favorables", f"{taux_fav:.0f}%", "dossiers acceptables", "green")
+    with k3:
+        kpi_card("📉", "Risque moyen", f"{proba_moy:.1f}%", "probabilité de défaut", "amber")
+    with k4:
+        kpi_card("🔴", "Refus", f"{taux_ref:.0f}%", "dossiers à risque", "red")
+
     k1, k2, k3 = st.columns(3)
     with k1:
-        kpi_card("🧮", "Analyses effectuées", f"{total}", "dossiers traités", "blue")
         kpi_card("💰", "Montant moyen", f"{montant_moy:,.0f} $", "par dossier", "gold")
     with k2:
-        kpi_card("✅", "Avis favorables", f"{taux_fav:.0f}%", "dossiers acceptables", "green")
-        kpi_card("📉", "Risque moyen", f"{proba_moy:.1f}%", "probabilité de défaut", "amber")
+        kpi_card("⚖️", "DTI moyen", f"{dti_moy:.1f}%", "ratio prêt / revenu", "navy")
     with k3:
-        kpi_card("🔴", "Taux de refus", f"{taux_ref:.0f}%", "dossiers à risque", "red")
-        kpi_card("⚖️", "Endettement moyen", f"{dti_moy:.1f}%", "ratio prêt / revenu", "navy")
+        score_moy = df["score"].mean()
+        tone_s = "green" if score_moy >= 70 else "amber" if score_moy >= 50 else "red"
+        kpi_card("🏆", "Score moyen", f"{score_moy:.0f}/100", "solvabilité globale", tone_s)
 
     section_title("📈", "Graphiques & explications", "Interprétation automatique des données")
 
@@ -1015,12 +1400,16 @@ def render_dashboard():
         try:
             counts = df.decision.value_counts()
             fig = go.Figure(go.Pie(
-                labels=list(counts.index), values=list(counts.values), hole=0.62,
-                marker=dict(colors=[COULEURS.get(c, "#888888") for c in counts.index]),
-                textinfo="percent",
+                labels=list(counts.index), values=list(counts.values), hole=0.68,
+                marker=dict(colors=[COULEURS.get(c, "#888888") for c in counts.index],
+                            line=dict(color=C["bg_card_solid"], width=3)),
+                textinfo="percent+label",
+                textfont=dict(family="Sora", size=13, color=C["text"]),
+                hovertemplate="<b>%{label}</b><br>%{percent}<br>%{value} dossiers<extra></extra>",
             ))
-            fig.update_layout(legend=dict(orientation="h", y=-0.08))
-            afficher_fig(style_fig(fig, 300, legend=True))
+            fig.update_layout(legend=dict(orientation="h", y=-0.08,
+                                          font=dict(color=C["text_2"])))
+            afficher_fig(style_fig(fig, 320, legend=True))
         except Exception as e:
             st.warning(f"⚠️ Graphique indisponible : {e}")
         tone = "success" if taux_fav >= 50 else "danger"
@@ -1039,10 +1428,16 @@ def render_dashboard():
             hist = bins.value_counts().sort_index()
             labels = [f"{int(i.left)}–{int(i.right)}%" for i in hist.index]
             colors_list = [couleur_risque(i.left) for i in hist.index]
-            fig = go.Figure(go.Bar(x=labels, y=list(hist.values),
-                                   marker=dict(color=colors_list),
-                                   text=list(hist.values), textposition="outside"))
-            afficher_fig(style_fig(fig, 300))
+            fig = go.Figure(go.Bar(
+                x=labels, y=list(hist.values),
+                marker=dict(color=colors_list, line=dict(color="rgba(255,255,255,.3)", width=1)),
+                text=list(hist.values), textposition="outside",
+                textfont=dict(color=C["text"], family="Sora"),
+            ))
+            fig.update_layout(
+                hovertemplate="<b>%{x}</b><br>%{y} dossiers<extra></extra>"
+            )
+            afficher_fig(style_fig(fig, 320))
         except Exception as e:
             st.warning(f"⚠️ Graphique indisponible : {e}")
         insight_box("🔎", "Interprétation",
@@ -1059,13 +1454,23 @@ def render_dashboard():
         try:
             act = df.groupby(df.date.dt.date).size().reset_index(name="n")
             fig = go.Figure()
-            fig.add_trace(go.Bar(x=act["date"].astype(str), y=act.n,
-                                 marker=dict(color="#2E6DB4")))
-            fig.add_trace(go.Scatter(x=act["date"].astype(str), y=act.n,
-                                     mode="lines+markers",
-                                     line=dict(color="#D4AF37", width=2.5)))
-            fig.update_layout(barmode="overlay")
-            afficher_fig(style_fig(fig, 300))
+            fig.add_trace(go.Bar(
+                x=act["date"].astype(str), y=act.n,
+                marker=dict(
+                    color="rgba(46,109,180,.7)",
+                    line=dict(color=C["blue"], width=1.5),
+                ),
+                name="Analyses",
+            ))
+            fig.add_trace(go.Scatter(
+                x=act["date"].astype(str), y=act.n,
+                mode="lines+markers",
+                line=dict(color=C["gold"], width=2.5),
+                marker=dict(size=8, color=C["gold"]),
+                name="Tendance",
+            ))
+            fig.update_layout(barmode="overlay", hovermode="x unified")
+            afficher_fig(style_fig(fig, 320))
             pic = act.loc[act.n.idxmax()]
             txt = (f"Le pic d'activité ({int(pic.n)} analyse(s)) a été enregistré le {pic.date}. "
                    + ("L'usage est régulier sur la période." if len(act) > 1 else "Première journée d'utilisation du scoring."))
@@ -1081,20 +1486,26 @@ def render_dashboard():
             par_objet = df.groupby("objet")["proba_pct"].mean().sort_values().reset_index()
             fig = go.Figure(go.Bar(
                 y=list(par_objet.objet), x=list(par_objet.proba_pct), orientation="h",
-                marker=dict(color=[couleur_risque(v) for v in par_objet.proba_pct]),
-                text=[f"{v:.0f}%" for v in par_objet.proba_pct], textposition="outside",
+                marker=dict(
+                    color=[couleur_risque(v) for v in par_objet.proba_pct],
+                    line=dict(color="rgba(255,255,255,.2)", width=1),
+                ),
+                text=[f"{v:.0f}%" for v in par_objet.proba_pct],
+                textposition="outside",
+                textfont=dict(color=C["text"], family="Sora"),
+                hovertemplate="<b>%{y}</b><br>Risque moyen : %{x:.1f}%<extra></extra>",
             ))
-            fig.update_layout(xaxis=dict(range=[0, 100]))
-            afficher_fig(style_fig(fig, 300))
+            fig.update_layout(xaxis=dict(range=[0, 110]))
+            afficher_fig(style_fig(fig, 320))
             pire, meilleur = par_objet.objet.iloc[-1], par_objet.objet.iloc[0]
             txt = (f"Les prêts « {pire} » présentent le risque moyen le plus élevé, tandis que « {meilleur} » "
-                   "sont les plus sûrs. Adaptez les conditions (taux, garanties) selon la finalité.")
+                   "sont les plus sûrs. Adaptez les conditions selon la finalité.")
         except Exception as e:
             st.warning(f"⚠️ Graphique indisponible : {e}")
             txt = "Données insuffisantes pour comparer les objets de prêt."
         insight_box("⚠️", "Interprétation", txt, "warning")
 
-    # ---------- 5. Scatter revenu / prêt ----------
+    # ---------- 5. Scatter revenu / prêt (bulles) ----------
     c1, c2 = st.columns(2, gap="large")
     with c1:
         chart_title("🔵", "Revenu vs montant du prêt", "Taille de bulle = probabilité de défaut")
@@ -1106,16 +1517,30 @@ def render_dashboard():
                     continue
                 fig.add_trace(go.Scatter(
                     x=list(sub.revenu), y=list(sub.montant), mode="markers", name=dec,
-                    marker=dict(size=list(sub.proba_pct / 4 + 6),
-                                color=COULEURS[dec], opacity=0.75,
-                                line=dict(width=1, color="white")),
+                    marker=dict(
+                        size=list(sub.proba_pct / 3 + 8),
+                        color=COULEURS[dec],
+                        opacity=0.78,
+                        line=dict(width=1.5, color="rgba(255,255,255,.6)"),
+                    ),
+                    hovertemplate=(
+                        "<b>%{customdata[0]}</b><br>"
+                        "Revenu : %{x:,.0f} $<br>"
+                        "Prêt : %{y:,.0f} $<br>"
+                        "Risque : %{customdata[1]:.1f}%<extra></extra>"
+                    ),
+                    customdata=list(zip(sub.objet, sub.proba_pct)),
                 ))
             fig.update_layout(
-                xaxis=dict(title="Revenu annuel ($)"),
-                yaxis=dict(title="Montant du prêt ($)"),
-                legend=dict(orientation="h", y=-0.18),
+                xaxis=dict(title=dict(text="Revenu annuel ($)", font=dict(color=C["text_2"])),
+                           gridcolor=C["border"]),
+                yaxis=dict(title=dict(text="Montant du prêt ($)", font=dict(color=C["text_2"])),
+                           gridcolor=C["border"]),
+                legend=dict(orientation="h", y=-0.18,
+                            font=dict(color=C["text_2"])),
+                hovermode="closest",
             )
-            afficher_fig(style_fig(fig, 320, legend=True))
+            afficher_fig(style_fig(fig, 340, legend=True))
         except Exception as e:
             st.warning(f"⚠️ Graphique indisponible : {e}")
         try:
@@ -1125,31 +1550,58 @@ def render_dashboard():
             else:
                 force = "forte" if abs(corr) > 0.6 else "modérée" if abs(corr) > 0.3 else "faible"
                 txt = (f"La corrélation entre endettement (DTI) et probabilité de défaut est {force} (r = {corr:.2f}). "
-                       "Les bulles rouges se concentrent chez les demandeurs dont le prêt est élevé relativement au revenu.")
+                       "Les bulles rouges se concentrent chez les demandeurs à fort endettement.")
         except Exception:
             txt = "Corrélation non calculable."
         insight_box("🔗", "Interprétation", txt, "info")
 
-    # ---------- 6. Risque par logement ----------
+    # ---------- 6. Radar chart profil moyen ----------
     with c2:
-        chart_title("🏠", "Risque par situation de logement", "Probabilité de défaut moyenne par statut")
+        chart_title("🎭", "Profil moyen des dossiers", "Radar des caractéristiques")
         try:
-            par_home = df.groupby("logement").agg(
-                n=("proba_pct", "size"), moy=("proba_pct", "mean")).reset_index()
-            fig = go.Figure(go.Bar(
-                x=list(par_home.logement), y=list(par_home.moy),
-                marker=dict(color=[couleur_risque(v) for v in par_home.moy]),
-                text=[f"{v:.0f}%" for v in par_home.moy], textposition="outside",
+            # Normalisation des variables pour le radar
+            age_norm = (df["age"].mean() - 18) / (80 - 18) * 100
+            rev_norm = min(100, df["revenu"].mean() / 150_000 * 100)
+            emp_norm = min(100, df["anciennete"].mean() / 20 * 100)
+            cred_norm = min(100, df["hist_credit"].mean() / 20 * 100)
+            dti_norm = max(0, 100 - df["dti"].mean() * 100 * 2)  # inversé
+            solv_norm = 100 - df["proba_pct"].mean()
+
+            categories = ["Âge", "Revenu", "Ancienneté", "Hist. Crédit", "Solvabilité", "Faible DTI"]
+            values = [age_norm, rev_norm, emp_norm, cred_norm, solv_norm, dti_norm]
+
+            fig = go.Figure()
+            fig.add_trace(go.Scatterpolar(
+                r=values + [values[0]],
+                theta=categories + [categories[0]],
+                fill="toself",
+                fillcolor="rgba(212,175,55,.2)",
+                line=dict(color=C["gold"], width=2.5),
+                marker=dict(size=8, color=C["gold"]),
+                name="Profil moyen",
             ))
-            fig.update_layout(yaxis=dict(range=[0, 100]))
-            afficher_fig(style_fig(fig, 320))
-            top = par_home.loc[par_home.moy.idxmax()]
-            txt = (f"Le statut « {top.logement} » concentre le risque moyen le plus élevé ({top.moy:.0f}%). "
-                   "Les propriétaires présentent historiquement des défauts plus faibles.")
+            fig.update_layout(
+                polar=dict(
+                    bgcolor="rgba(0,0,0,0)",
+                    radialaxis=dict(
+                        visible=True, range=[0, 100],
+                        gridcolor=C["border"],
+                        tickfont=dict(color=C["text_3"], size=9),
+                    ),
+                    angularaxis=dict(
+                        gridcolor=C["border"],
+                        tickfont=dict(color=C["text_2"], size=11),
+                    ),
+                ),
+                showlegend=False,
+            )
+            afficher_fig(style_fig(fig, 340))
         except Exception as e:
             st.warning(f"⚠️ Graphique indisponible : {e}")
-            txt = "Données insuffisantes par statut de logement."
-        insight_box("🏠", "Interprétation", txt, "warning")
+        insight_box("🎯", "Interprétation",
+                    "Le radar révèle les forces et faiblesses moyennes du portefeuille. "
+                    "Les axes extérieurs indiquent des profils plus solides.",
+                    "info")
 
     # ---------- Historique détaillé ----------
     section_title("🗄️", "Historique détaillé", "Toutes les analyses enregistrées")
@@ -1170,7 +1622,9 @@ def render_dashboard():
             use_container_width=True,
             hide_index=True,
             column_config={
-                "proba_pct": st.column_config.ProgressColumn("Risque", min_value=0, max_value=100, format="%.1f"),
+                "proba_pct": st.column_config.ProgressColumn(
+                    "Risque", min_value=0, max_value=100, format="%.1f"
+                ),
             },
         )
     except Exception:
@@ -1182,7 +1636,8 @@ def render_dashboard():
 
     csv = df.to_csv(index=False).encode("utf-8")
     cexp.download_button("⬇️ Exporter CSV", data=csv,
-                         file_name="historique_analyses.csv", mime="text/csv")
+                         file_name="historique_analyses.csv", mime="text/csv",
+                         use_container_width=True)
 
     if cpdf.button("📄 Générer PDF", use_container_width=True):
         with st.spinner("Génération du rapport PDF..."):
@@ -1217,10 +1672,10 @@ def render_dashboard():
 
 # --------------------------------------------------------------------
 def render_footer():
-    st.markdown("""
+    st.markdown(f"""
     <div class="footer">
-        <strong>CreditScore Pro</strong> • Modèle Random Forest • Spark ML & Streamlit
-        <br>🔒 Données traitées de manière confidentielle
+        <strong>CreditScore Pro v4.0</strong> • Modèle Random Forest • Spark ML & Streamlit
+        <br>🔒 Données traitées de manière confidentielle • Thème actuel : <strong>{THEME}</strong>
         <br><a href="https://ibuuuu19.github.io/credit-risk-streamlit/privacy/" target="_blank">
         Politique de confidentialité</a>
     </div>""", unsafe_allow_html=True)
