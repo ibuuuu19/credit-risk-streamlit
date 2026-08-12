@@ -103,6 +103,8 @@ if THEME == "dark":
         "shadow_glow": "0 0 40px rgba(212,175,55,.15)",
         "glass": "rgba(255,255,255,.04)",
         "glass_border": "rgba(255,255,255,.1)",
+        "blue": "#2E6DB4",         # ✅ Correction KeyError 'blue'
+        "gold": "#D4AF37",         # ✅ Correction KeyError 'gold'
     }
 else:
     C = {
@@ -128,6 +130,8 @@ else:
         "shadow_glow": "0 0 40px rgba(184,148,31,.12)",
         "glass": "rgba(255,255,255,.6)",
         "glass_border": "rgba(18,36,74,.08)",
+        "blue": "#2E6DB4",         # ✅ Correction KeyError 'blue'
+        "gold": "#D4AF37",         # ✅ Correction KeyError 'gold'
     }
 
 st.markdown(f"""
@@ -172,7 +176,7 @@ html, body, .stApp {{
 #MainMenu {{visibility: hidden;}}
 footer    {{visibility: hidden;}}
 .block-container {{
-    padding-top: 1.5rem;
+    padding-top: 4.5rem; /* ✅ Augmenté (était 1.5rem) pour éviter la collision avec le header Streamlit */
     max-width: 1280px;
     background: linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 100%);
 }}
@@ -1464,15 +1468,15 @@ def render_dashboard():
                 x=act["date"].astype(str), y=act.n,
                 marker=dict(
                     color="rgba(46,109,180,.7)",
-                    line=dict(color=C["blue"], width=1.5),
+                    line=dict(color=C["blue"], width=1.5), # ✅ Clé "blue" ajoutée
                 ),
                 name="Analyses",
             ))
             fig.add_trace(go.Scatter(
                 x=act["date"].astype(str), y=act.n,
                 mode="lines+markers",
-                line=dict(color=C["gold"], width=2.5),
-                marker=dict(size=8, color=C["gold"]),
+                line=dict(color=C["gold"], width=2.5), # ✅ Clé "gold" ajoutée
+                marker=dict(size=8, color=C["gold"]),   # ✅ Clé "gold" ajoutée
                 name="Tendance",
             ))
             fig.update_layout(barmode="overlay", hovermode="x unified")
@@ -1582,8 +1586,8 @@ def render_dashboard():
                 theta=categories + [categories[0]],
                 fill="toself",
                 fillcolor="rgba(212,175,55,.2)",
-                line=dict(color=C["gold"], width=2.5),
-                marker=dict(size=8, color=C["gold"]),
+                line=dict(color=C["gold"], width=2.5), # ✅ Clé "gold" ajoutée
+                marker=dict(size=8, color=C["gold"]),   # ✅ Clé "gold" ajoutée
                 name="Profil moyen",
             ))
             fig.update_layout(
