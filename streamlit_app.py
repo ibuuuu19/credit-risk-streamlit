@@ -1032,7 +1032,6 @@ def generer_graphiques_pdf(df):
         pass
 
     return graphiques
-
 def generer_rapport_pdf(df, inclure_graphiques=True):
     """Génère un rapport PDF complet et professionnel"""
     buffer = io.BytesIO()
@@ -1042,8 +1041,7 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
         topMargin=2*cm, bottomMargin=2*cm,
     )
     styles = getSampleStyleSheet()
-    
-    # Styles personnalisés
+
     styles.add(ParagraphStyle(name='TitrePrincipal', parent=styles['Heading1'],
         fontSize=28, textColor=colors.HexColor('#12244A'),
         spaceAfter=20, alignment=TA_CENTER, fontName='Helvetica-Bold'))
@@ -1068,19 +1066,18 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
         fontSize=10, leading=14, leftIndent=20, bulletIndent=10, spaceAfter=6))
 
     story = []
-    
+
     # ========== PAGE 1 : COUVERTURE ==========
     story.append(Spacer(1, 3*cm))
     story.append(Paragraph("CreditScore Pro", styles['TitrePrincipal']))
     story.append(Spacer(1, 0.5*cm))
     story.append(Paragraph("Rapport d'Analyse de Risque de Crédit", styles['SousTitre']))
     story.append(Spacer(1, 1*cm))
-    story.append(Paragraph("Évaluation Intelligente du Risque — Spark ML & Random Forest", 
-                          ParagraphStyle('sub', parent=styles['Normal'], fontSize=11, 
+    story.append(Paragraph("Évaluation Intelligente du Risque — Spark ML & Random Forest",
+                          ParagraphStyle('sub', parent=styles['Normal'], fontSize=11,
                                         textColor=colors.HexColor('#4A5572'), alignment=TA_CENTER)))
     story.append(Spacer(1, 2*cm))
 
-    # KPIs de couverture
     total = len(df)
     taux_fav = (df.decision == "Favorable").mean() * 100
     taux_mod = (df.decision == "Modéré").mean() * 100
@@ -1125,7 +1122,7 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
         styles['CorpsTexte']
     ))
     story.append(Spacer(1, 0.3*cm))
-    
+
     story.append(Paragraph("<b>Variables Clés Analysées :</b>", styles['CorpsTexte']))
     variables = [
         "• <b>Âge et Revenu</b> : Profil financier de base de l'emprunteur",
@@ -1138,7 +1135,7 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
     ]
     for var in variables:
         story.append(Paragraph(var, styles['BulletPoint']))
-    
+
     story.append(Spacer(1, 0.5*cm))
     story.append(Paragraph("<b>Méthodologie :</b>", styles['CorpsTexte']))
     story.append(Paragraph(
@@ -1152,11 +1149,10 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
 
     # ========== PAGE 3 : GRAPHIQUES PRINCIPAUX ==========
     story.append(Paragraph("2. Analyse Visuelle du Portefeuille", styles['TitreSection']))
-    
+
     if inclure_graphiques:
         graphiques = generer_graphiques_pdf(df)
-        
-        # Afficher les graphiques 2 par page
+
         for i in range(0, len(graphiques), 2):
             for j in range(2):
                 if i + j < len(graphiques):
@@ -1165,7 +1161,7 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
                     story.append(img)
                     story.append(Paragraph(f"Figure {i+j+1} : {titre}", styles['Caption']))
                     story.append(Spacer(1, 0.3*cm))
-            
+
             if i + 2 < len(graphiques):
                 story.append(PageBreak())
                 story.append(Paragraph("2. Analyse Visuelle du Portefeuille (suite)", styles['TitreSection']))
@@ -1174,55 +1170,52 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
 
     # ========== PAGE 4 : ANALYSE DÉTAILLÉE ==========
     story.append(Paragraph("3. Analyse Détaillée et Insights", styles['TitreSection']))
-    
-    # Analyse par objet de prêt
+
     story.append(Paragraph("<b>3.1 Risque par Objet de Prêt</b>", styles['SousTitre']))
     par_objet = df.groupby("objet").agg({
         "proba_pct": "mean",
         "montant": "mean",
         "decision": lambda x: (x == "Favorable").sum() / len(x) * 100
     }).sort_values("proba_pct")
-    
+
     for objet in par_objet.index:
         risque = par_objet.loc[objet, "proba_pct"]
         montant = par_objet.loc[objet, "montant"]
         taux_fav_obj = par_objet.loc[objet, "decision"]
         couleur_risque_txt = "faible" if risque < 20 else ("modéré" if risque < 40 else "élevé")
-        
+
         story.append(Paragraph(
             f"<b>{objet}</b> : Risque moyen de {risque:.1f}% ({couleur_risque_txt}), "
             f"montant moyen {montant:,.0f}$, taux d'acceptation {taux_fav_obj:.1f}%",
             styles['CorpsTexte']
         ))
-    
+
     story.append(Spacer(1, 0.5*cm))
-    
-    # Analyse par statut de logement
+
     story.append(Paragraph("<b>3.2 Risque par Statut de Logement</b>", styles['SousTitre']))
     par_logement = df.groupby("logement").agg({
         "proba_pct": "mean",
         "montant": "mean"
     }).sort_values("proba_pct")
-    
+
     for logement in par_logement.index:
         risque = par_logement.loc[logement, "proba_pct"]
         montant = par_logement.loc[logement, "montant"]
-        
+
         story.append(Paragraph(
             f"<b>{logement}</b> : Risque moyen de {risque:.1f}%, montant moyen {montant:,.0f}$",
             styles['CorpsTexte']
         ))
-    
+
     story.append(Spacer(1, 0.5*cm))
-    
-    # Corrélations importantes
+
     story.append(Paragraph("<b>3.3 Corrélations Importantes</b>", styles['SousTitre']))
-    
+
     if len(df) > 2:
         corr_dti = df["dti"].corr(df["proba_defaut"])
         corr_revenu = df["revenu"].corr(df["proba_defaut"])
         corr_age = df["age"].corr(df["proba_defaut"])
-        
+
         story.append(Paragraph(
             f"• <b>DTI vs Risque</b> : corrélation de {corr_dti:.2f} — "
             f"{'Forte' if abs(corr_dti) > 0.6 else 'Modérée' if abs(corr_dti) > 0.3 else 'Faible'} "
@@ -1241,15 +1234,14 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
             f"relation",
             styles['BulletPoint']
         ))
-    
+
     story.append(PageBreak())
 
     # ========== PAGE 5 : RECOMMANDATIONS ==========
     story.append(Paragraph("4. Recommandations Stratégiques", styles['TitreSection']))
-    
-    # Recommandations générales
+
     story.append(Paragraph("<b>4.1 Recommandations Générales</b>", styles['SousTitre']))
-    
+
     if taux_def > 30:
         story.append(Paragraph(
             "⚠️ <b>Alerte</b> : Le taux de refus dépasse 30%, indiquant un portefeuille à risque élevé. "
@@ -1262,7 +1254,7 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
             "d'acceptation élevé. Maintenir les critères actuels.",
             styles['InsightBox']
         ))
-    
+
     recommandations = [
         "• <b>Pour les dossiers Favorables</b> : Accorder rapidement, proposer des services complémentaires, "
         "fidéliser le client avec des offres privilégiées.",
@@ -1273,17 +1265,15 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
     ]
     for reco in recommandations:
         story.append(Paragraph(reco, styles['BulletPoint']))
-    
+
     story.append(Spacer(1, 0.5*cm))
-    
-    # Recommandations spécifiques
+
     story.append(Paragraph("<b>4.2 Recommandations Spécifiques</b>", styles['SousTitre']))
-    
-    # Identifier les objets les plus risqués
+
     if len(par_objet) > 0:
         pire_objet = par_objet.index[-1]
         meilleur_objet = par_objet.index[0]
-        
+
         story.append(Paragraph(
             f"• Les prêts <b>{pire_objet}</b> présentent le risque le plus élevé ({par_objet.iloc[-1]['proba_pct']:.1f}%). "
             f"Renforcer les critères d'acceptation pour cette catégorie.",
@@ -1294,15 +1284,14 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
             f"Encourager ce type de demande avec des conditions avantageuses.",
             styles['BulletPoint']
         ))
-    
-    # DTI critique
+
     if dti_moy > 35:
         story.append(Paragraph(
             f"• <b>Attention DTI</b> : Le DTI moyen de {dti_moy:.1f}% dépasse le seuil critique de 35%. "
             "Mettre en place un contrôle automatique pour les demandes avec DTI > 40%.",
             styles['BulletPoint']
         ))
-    
+
     story.append(PageBreak())
 
     # ========== PAGE 6 : HISTORIQUE DÉTAILLÉ ==========
@@ -1312,8 +1301,8 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
         styles['CorpsTexte']
     ))
     story.append(Spacer(1, 0.3*cm))
-    
-    # Créer le tableau d'historique
+
+    # ✅ CORRECTION : créer TOUTES les colonnes d'affichage (les minuscules n'existaient pas sous ce nom)
     df_hist = df.copy()
     df_hist["Date"] = df_hist["date"].dt.strftime("%d/%m/%Y %H:%M")
     df_hist["Âge"] = df_hist["age"].astype(int)
@@ -1321,10 +1310,13 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
     df_hist["Prêt"] = df_hist["montant"].apply(lambda x: f"{x:,.0f}$")
     df_hist["Risque"] = df_hist["proba_pct"].apply(lambda x: f"{x:.1f}%")
     df_hist["Score"] = df_hist["score"].astype(int)
-    
+    df_hist["Objet"] = df_hist["objet"].astype(str)          # ✅ était manquant
+    df_hist["Logement"] = df_hist["logement"].astype(str)    # ✅ était manquant
+    df_hist["Décision"] = df_hist["decision"].astype(str)    # ✅ était manquant
+
     colonnes = ["Date", "Âge", "Revenu", "Prêt", "Objet", "Logement", "Risque", "Score", "Décision"]
-    df_table = df_hist[colonnes].head(20)  # Limiter à 20 lignes pour la lisibilité
-    
+    df_table = df_hist[colonnes].sort_values("Date", ascending=False).head(20)
+
     donnees_table = [colonnes] + df_table.values.tolist()
     table_hist = Table(donnees_table, colWidths=[2.2*cm, 1.2*cm, 2*cm, 2*cm, 2.5*cm, 2*cm, 1.5*cm, 1.3*cm, 2.3*cm])
     table_hist.setStyle(TableStyle([
@@ -1340,13 +1332,13 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
     ]))
     story.append(table_hist)
-    
+
     if total > 20:
         story.append(Paragraph(
             f"<i>Tableau limité aux 20 analyses les plus récentes sur {total} au total.</i>",
             styles['Note']
         ))
-    
+
     story.append(PageBreak())
 
     # ========== PAGE 7 : CONCLUSION ==========
@@ -1358,7 +1350,7 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
         styles['CorpsTexte']
     ))
     story.append(Spacer(1, 0.3*cm))
-    
+
     story.append(Paragraph(
         "Les analyses montrent que les variables les plus déterminantes sont le taux d'endettement (DTI), "
         "le revenu annuel, et l'objet du prêt. Une surveillance continue et des ajustements périodiques "
@@ -1366,13 +1358,12 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
         styles['CorpsTexte']
     ))
     story.append(Spacer(1, 0.5*cm))
-    
+
     story.append(Paragraph(
         f"<i>Rapport généré automatiquement par CreditScore Pro v4.0 le {datetime.now().strftime('%d/%m/%Y à %H:%M')}</i>",
         styles['Note']
     ))
 
-    # Build PDF
     doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
