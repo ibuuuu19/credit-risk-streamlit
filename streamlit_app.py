@@ -176,7 +176,7 @@ html, body, .stApp {{
 #MainMenu {{visibility: hidden;}}
 footer    {{visibility: hidden;}}
 .block-container {{
-    padding-top: 4.5rem; /* ✅ Augmenté (était 1.5rem) pour éviter la collision avec le header Streamlit */
+    padding-top: 4.5rem;
     max-width: 1280px;
     background: linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 100%);
 }}
@@ -212,7 +212,6 @@ section[data-testid="stSidebar"] h2 {{
     margin-bottom: 1.5rem !important;
 }}
 
-/* ── Theme toggle button ── */
 .theme-toggle-wrap {{
     display: flex;
     justify-content: center;
@@ -273,7 +272,6 @@ section[data-testid="stSidebar"] .stRadio label:has(input:checked) {{
 }}
 section[data-testid="stSidebar"] .stRadio input[type="radio"] {{ display: none; }}
 
-/* Sidebar metrics */
 div[data-testid="stMetric"] {{
     background: var(--glass);
     border: 1px solid var(--glass-border);
@@ -300,7 +298,6 @@ div[data-testid="stMetric"] div[data-testid="stMetricValue"] {{
     font-weight: 800 !important;
 }}
 
-/* ════════════ HERO ════════════ */
 .hero {{
     background: linear-gradient(135deg, var(--hero-g1) 0%, var(--hero-g2) 55%, var(--hero-g3) 100%);
     border-radius: 20px;
@@ -379,7 +376,6 @@ div[data-testid="stMetric"] div[data-testid="stMetricValue"] {{
     box-shadow: 0 0 20px rgba(212,175,55,.2);
 }}
 
-/* ════════════ KPI CARDS ════════════ */
 .kpi {{
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -456,7 +452,6 @@ div[data-testid="stMetric"] div[data-testid="stMetricValue"] {{
 .tone-navy  .kpi-icon {{ background: rgba(27,59,111,.12); color: var(--navy-2); }}
 .tone-navy  {{ border-left-color: var(--navy-2); }}
 
-/* ════════════ SECTIONS & CHARTS ════════════ */
 .section-title {{
     display: flex; gap: 14px; align-items: center;
     margin: 2.5rem 0 1.2rem;
@@ -506,7 +501,6 @@ div[data-testid="stMetric"] div[data-testid="stMetricValue"] {{
     color: var(--text-3) !important;
 }}
 
-/* ════════════ INSIGHTS ════════════ */
 .insight {{
     display: flex; gap: 14px; align-items: flex-start;
     border-radius: 16px; padding: 16px 18px;
@@ -552,7 +546,6 @@ div[data-testid="stMetric"] div[data-testid="stMetricValue"] {{
 }}
 .insight-danger::before {{ background: var(--red); }}
 
-/* ════════════ RÉSULTAT DIAGNOSTIC ════════════ */
 .result-card {{
     border-radius: 22px; text-align: center;
     padding: 2.5rem 1.5rem;
@@ -609,7 +602,6 @@ div[data-testid="stMetric"] div[data-testid="stMetricValue"] {{
     position: relative;
 }}
 
-/* ════════════ WIDGETS ════════════ */
 .stButton > button {{
     background: linear-gradient(135deg, var(--hero-g1), var(--hero-g2)) !important;
     color: #fff !important;
@@ -640,7 +632,6 @@ div[data-testid="stMetric"] div[data-testid="stMetricValue"] {{
     transform: translateY(-1px) !important;
 }}
 
-/* Form inputs */
 .stNumberInput input, .stSelectbox div[data-baseweb="select"] > div,
 .stTextInput input, textarea {{
     border-radius: 12px !important;
@@ -655,7 +646,6 @@ div[data-testid="stMetric"] div[data-testid="stMetricValue"] {{
     box-shadow: 0 0 0 3px rgba(212,175,55,.15) !important;
 }}
 
-/* ════════════ DATAFRAME ════════════ */
 div[data-testid="stDataFrame"] {{
     border-radius: 16px;
     overflow: hidden;
@@ -663,7 +653,6 @@ div[data-testid="stDataFrame"] {{
     box-shadow: var(--shadow);
 }}
 
-/* ════════════ EMPTY STATE ════════════ */
 .empty-state {{
     background: var(--bg-card);
     border: 2px dashed var(--border-2);
@@ -700,7 +689,6 @@ div[data-testid="stDataFrame"] {{
     line-height: 1.7;
 }}
 
-/* ════════════ FOOTER ════════════ */
 .footer {{
     text-align: center; color: var(--text-3);
     font-size: .82rem;
@@ -728,7 +716,6 @@ div[data-testid="stDataFrame"] {{
     color: var(--gold-d);
 }}
 
-/* ════════════ ANIMATIONS ════════════ */
 @keyframes fadeUp {{
     from {{ opacity: 0; transform: translateY(20px); filter: blur(4px); }}
     to   {{ opacity: 1; transform: translateY(0); filter: blur(0); }}
@@ -746,7 +733,6 @@ div[data-testid="stDataFrame"] {{
     50% {{ opacity: .7; transform: scale(1.08); }}
 }}
 
-/* ════════════ UTILS ════════════ */
 .stAlert {{
     border-radius: 14px !important;
     border: 1px solid var(--border) !important;
@@ -762,25 +748,21 @@ hr {{
     opacity: .5;
 }}
 
-/* Streamlit expander */
 .streamlit-expanderHeader {{
     font-weight: 700 !important;
     color: var(--text) !important;
 }}
 
-/* Progress column */
 div[data-testid="stColumn"] {{
     transition: all .3s ease;
 }}
 
-/* Mobile */
 @media (max-width: 768px) {{
     .hero {{ padding: 1.25rem 1.4rem; }}
     .hero h1 {{ font-size: 1.4rem !important; }}
     .result-score {{ font-size: 3rem; }}
 }}
 
-/* Scrollbar */
 ::-webkit-scrollbar {{ width: 10px; height: 10px; }}
 ::-webkit-scrollbar-track {{ background: var(--bg-1); }}
 ::-webkit-scrollbar-thumb {{
@@ -792,7 +774,6 @@ div[data-testid="stColumn"] {{
     background: linear-gradient(180deg, var(--gold), var(--gold-d));
 }}
 
-/* Focus */
 :focus-visible {{
     outline: 2px solid var(--gold);
     outline-offset: 2px;
@@ -844,7 +825,6 @@ def insight_box(icon, titre, texte, tone="info"):
     </div>""", unsafe_allow_html=True)
 
 def style_fig(fig, height=320, legend=False):
-    # Couleurs adaptatives selon le thème
     text_color = C["text"]
     grid_color = C["border"]
     fig.update_layout(
@@ -904,7 +884,7 @@ def decision_depuis_proba(p):
     return "Défavorable"
 
 # --------------------------------------------------------------------
-# Génération PDF (inchangée, juste nettoyée)
+# Génération PDF — RAPPORT COMPLET ENRICHI
 # --------------------------------------------------------------------
 import matplotlib
 matplotlib.use("Agg")
@@ -915,73 +895,146 @@ def _fig_to_png(fig):
     fig.savefig(buf, format="png", dpi=150, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     buf.seek(0)
-    return buf
+    return buf.getvalue()
 
 def generer_graphiques_pdf(df):
+    """Génère tous les graphiques matplotlib pour le PDF"""
     graphiques = []
     NAVY = "#12244A"
     GRID = "#DCE3EF"
     TXT = "#26324A"
 
+    # 1. Répartition des décisions (Donut)
     try:
         counts = df.decision.value_counts()
-        fig, ax = plt.subplots(figsize=(7, 4))
+        fig, ax = plt.subplots(figsize=(8, 5))
         cols = [COULEURS.get(c, "#888888") for c in counts.index]
         wedges, texts, autotexts = ax.pie(
             counts.values, labels=counts.index, colors=cols,
             autopct="%1.0f%%", startangle=90,
             wedgeprops=dict(width=0.42, edgecolor="white", linewidth=2),
-            textprops=dict(fontsize=10, color=TXT),
+            textprops=dict(fontsize=11, color=TXT, weight="bold"),
         )
         for t in autotexts:
-            t.set_color("white"); t.set_fontweight("bold")
-        ax.set_title("Répartition des décisions de crédit",
-                     fontsize=12, fontweight="bold", color=NAVY)
+            t.set_color("white"); t.set_fontweight("bold"); t.set_fontsize(10)
+        ax.set_title("Répartition des Décisions de Crédit",
+                     fontsize=14, fontweight="bold", color=NAVY, pad=20)
         graphiques.append((_fig_to_png(fig), "Répartition des décisions de crédit"))
     except Exception:
         pass
 
+    # 2. Distribution des probabilités (Histogramme)
     try:
         bins = pd.cut(df["proba_pct"], bins=[0, 20, 40, 60, 80, 100], include_lowest=True)
         hist = bins.value_counts().sort_index()
         labels = [f"{int(i.left)}-{int(i.right)}%" for i in hist.index]
         cols = [couleur_risque(i.left) for i in hist.index]
-        fig, ax = plt.subplots(figsize=(7, 4))
+        fig, ax = plt.subplots(figsize=(8, 5))
         ax.bar(labels, hist.values, color=cols, edgecolor="white", linewidth=1.5)
-        ax.set_ylabel("Nombre d'analyses", fontsize=10, color=TXT)
-        ax.set_title("Distribution des probabilités de défaut",
-                     fontsize=12, fontweight="bold", color=NAVY)
+        ax.set_ylabel("Nombre d'analyses", fontsize=11, color=TXT, weight="bold")
+        ax.set_xlabel("Probabilité de défaut", fontsize=11, color=TXT, weight="bold")
+        ax.set_title("Distribution des Probabilités de Défaut",
+                     fontsize=14, fontweight="bold", color=NAVY, pad=20)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
         ax.spines["left"].set_color(GRID)
         ax.spines["bottom"].set_color(GRID)
         ax.tick_params(colors=TXT)
+        for i, v in enumerate(hist.values):
+            ax.text(i, v + 0.1, str(v), ha='center', fontweight='bold', fontsize=10)
         graphiques.append((_fig_to_png(fig), "Distribution des probabilités de défaut"))
     except Exception:
         pass
 
+    # 3. Risque par objet de prêt
     try:
         par_objet = df.groupby("objet")["proba_pct"].mean().sort_values()
-        fig, ax = plt.subplots(figsize=(7, 4))
+        fig, ax = plt.subplots(figsize=(8, 5))
         cols = [couleur_risque(v) for v in par_objet.values]
         ax.barh(par_objet.index, par_objet.values, color=cols,
                 edgecolor="white", linewidth=1.5)
         ax.set_xlim(0, 100)
-        ax.set_xlabel("Risque moyen (%)", fontsize=10, color=TXT)
-        ax.set_title("Risque moyen par objet de prêt",
-                     fontsize=12, fontweight="bold", color=NAVY)
+        ax.set_xlabel("Risque moyen (%)", fontsize=11, color=TXT, weight="bold")
+        ax.set_title("Risque Moyen par Objet de Prêt",
+                     fontsize=14, fontweight="bold", color=NAVY, pad=20)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
         ax.spines["left"].set_color(GRID)
         ax.spines["bottom"].set_color(GRID)
         ax.tick_params(colors=TXT)
+        for i, v in enumerate(par_objet.values):
+            ax.text(v + 1, i, f"{v:.1f}%", va='center', fontweight='bold', fontsize=10)
         graphiques.append((_fig_to_png(fig), "Risque moyen par objet de prêt"))
+    except Exception:
+        pass
+
+    # 4. Répartition par statut de logement
+    try:
+        logement_counts = df.logement.value_counts()
+        fig, ax = plt.subplots(figsize=(8, 5))
+        colors_log = ["#2E6DB4", "#1B3B6F", "#0FA36B", "#E8A13A"]
+        ax.bar(logement_counts.index, logement_counts.values, color=colors_log[:len(logement_counts)],
+               edgecolor="white", linewidth=1.5)
+        ax.set_ylabel("Nombre de dossiers", fontsize=11, color=TXT, weight="bold")
+        ax.set_title("Répartition par Statut de Logement",
+                     fontsize=14, fontweight="bold", color=NAVY, pad=20)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.spines["left"].set_color(GRID)
+        ax.spines["bottom"].set_color(GRID)
+        ax.tick_params(colors=TXT)
+        for i, v in enumerate(logement_counts.values):
+            ax.text(i, v + 0.1, str(v), ha='center', fontweight='bold', fontsize=10)
+        graphiques.append((_fig_to_png(fig), "Répartition par statut de logement"))
+    except Exception:
+        pass
+
+    # 5. Scatter Revenu vs Montant (avec couleur par risque)
+    try:
+        fig, ax = plt.subplots(figsize=(8, 5))
+        scatter = ax.scatter(df.revenu, df.montant, c=df.proba_pct, cmap='RdYlGn_r',
+                            s=60, alpha=0.7, edgecolors='white', linewidth=1.5)
+        ax.set_xlabel("Revenu annuel ($)", fontsize=11, color=TXT, weight="bold")
+        ax.set_ylabel("Montant du prêt ($)", fontsize=11, color=TXT, weight="bold")
+        ax.set_title("Revenu vs Montant du Prêt (couleur = risque)",
+                     fontsize=14, fontweight="bold", color=NAVY, pad=20)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.spines["left"].set_color(GRID)
+        ax.spines["bottom"].set_color(GRID)
+        ax.tick_params(colors=TXT)
+        cbar = plt.colorbar(scatter, ax=ax, label="Probabilité de défaut (%)")
+        cbar.set_label("Probabilité de défaut (%)", fontsize=10, color=TXT, weight="bold")
+        graphiques.append((_fig_to_png(fig), "Revenu vs montant du prêt"))
+    except Exception:
+        pass
+
+    # 6. Évolution temporelle
+    try:
+        df_temp = df.copy()
+        df_temp["date_only"] = df_temp.date.dt.date
+        daily = df_temp.groupby("date_only").size().reset_index(name="count")
+        fig, ax = plt.subplots(figsize=(8, 5))
+        ax.bar(daily.date_only.astype(str), daily.count, color="#2E6DB4",
+               edgecolor="white", linewidth=1.5)
+        ax.set_xlabel("Date", fontsize=11, color=TXT, weight="bold")
+        ax.set_ylabel("Nombre d'analyses", fontsize=11, color=TXT, weight="bold")
+        ax.set_title("Activité Journalière des Analyses",
+                     fontsize=14, fontweight="bold", color=NAVY, pad=20)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.spines["left"].set_color(GRID)
+        ax.spines["bottom"].set_color(GRID)
+        ax.tick_params(colors=TXT, rotation=45)
+        plt.tight_layout()
+        graphiques.append((_fig_to_png(fig), "Activité journalière"))
     except Exception:
         pass
 
     return graphiques
 
 def generer_rapport_pdf(df, inclure_graphiques=True):
+    """Génère un rapport PDF complet et professionnel"""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer, pagesize=A4,
@@ -989,43 +1042,65 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
         topMargin=2*cm, bottomMargin=2*cm,
     )
     styles = getSampleStyleSheet()
+    
+    # Styles personnalisés
     styles.add(ParagraphStyle(name='TitrePrincipal', parent=styles['Heading1'],
-        fontSize=24, textColor=colors.HexColor('#12244A'),
-        spaceAfter=30, alignment=TA_CENTER, fontName='Helvetica-Bold'))
+        fontSize=28, textColor=colors.HexColor('#12244A'),
+        spaceAfter=20, alignment=TA_CENTER, fontName='Helvetica-Bold'))
     styles.add(ParagraphStyle(name='SousTitre', parent=styles['Heading2'],
-        fontSize=14, textColor=colors.HexColor('#1B3B6F'),
-        spaceAfter=12, spaceBefore=20, fontName='Helvetica-Bold'))
+        fontSize=16, textColor=colors.HexColor('#1B3B6F'),
+        spaceAfter=15, spaceBefore=25, fontName='Helvetica-Bold'))
+    styles.add(ParagraphStyle(name='TitreSection', parent=styles['Heading2'],
+        fontSize=14, textColor=colors.HexColor('#0B1F3A'),
+        spaceAfter=12, spaceBefore=20, fontName='Helvetica-Bold',
+        borderWidth=2, borderColor=colors.HexColor('#D4AF37'), borderPadding=5))
     styles.add(ParagraphStyle(name='CorpsTexte', parent=styles['Normal'],
-        fontSize=10, leading=14, alignment=TA_JUSTIFY, spaceAfter=8))
+        fontSize=10, leading=14, alignment=TA_JUSTIFY, spaceAfter=10))
     styles.add(ParagraphStyle(name='InsightBox', parent=styles['Normal'],
         fontSize=9, leading=12, backColor=colors.HexColor('#EAF1FB'),
         borderColor=colors.HexColor('#C9DCF5'),
-        borderWidth=1, borderPadding=8, spaceAfter=10))
+        borderWidth=1, borderPadding=8, spaceAfter=12))
     styles.add(ParagraphStyle(name='Caption', parent=styles['Normal'],
-        fontSize=9, alignment=TA_CENTER, textColor=colors.grey))
+        fontSize=9, alignment=TA_CENTER, textColor=colors.grey, spaceAfter=15))
     styles.add(ParagraphStyle(name='Note', parent=styles['Normal'],
-        fontSize=8, textColor=colors.grey))
+        fontSize=8, textColor=colors.grey, spaceAfter=8))
+    styles.add(ParagraphStyle(name='BulletPoint', parent=styles['Normal'],
+        fontSize=10, leading=14, leftIndent=20, bulletIndent=10, spaceAfter=6))
 
     story = []
+    
+    # ========== PAGE 1 : COUVERTURE ==========
     story.append(Spacer(1, 3*cm))
     story.append(Paragraph("CreditScore Pro", styles['TitrePrincipal']))
-    story.append(Paragraph("Rapport d'Analyse de Risque de Crédit", styles['Heading2']))
+    story.append(Spacer(1, 0.5*cm))
+    story.append(Paragraph("Rapport d'Analyse de Risque de Crédit", styles['SousTitre']))
     story.append(Spacer(1, 1*cm))
+    story.append(Paragraph("Évaluation Intelligente du Risque — Spark ML & Random Forest", 
+                          ParagraphStyle('sub', parent=styles['Normal'], fontSize=11, 
+                                        textColor=colors.HexColor('#4A5572'), alignment=TA_CENTER)))
+    story.append(Spacer(1, 2*cm))
 
+    # KPIs de couverture
     total = len(df)
     taux_fav = (df.decision == "Favorable").mean() * 100
+    taux_mod = (df.decision == "Modéré").mean() * 100
+    taux_def = (df.decision == "Défavorable").mean() * 100
     proba_moy = df.proba_pct.mean()
     montant_moy = df.montant.mean()
+    dti_moy = df.dti.mean() * 100
 
     donnees_couverture = [
-        ['Indicateur', 'Valeur'],
-        ["Nombre d'analyses", str(total)],
-        ["Taux d'avis favorables", f'{taux_fav:.1f}%'],
-        ['Probabilité de défaut moyenne', f'{proba_moy:.1f}%'],
-        ['Montant moyen demandé', f'{montant_moy:,.0f} $'],
-        ['Date du rapport', datetime.now().strftime('%d/%m/%Y')],
+        ['Indicateur', 'Valeur', 'Interprétation'],
+        ["Nombre d'analyses", str(total), "Volume total de dossiers évalués"],
+        ["Taux d'avis favorables", f'{taux_fav:.1f}%', "Dossiers à faible risque"],
+        ["Taux d'avis modérés", f'{taux_mod:.1f}%', "Dossiers nécessitant examen"],
+        ["Taux d'avis défavorables", f'{taux_def:.1f}%', "Dossiers à risque élevé"],
+        ['Probabilité de défaut moyenne', f'{proba_moy:.1f}%', "Risque global du portefeuille"],
+        ['Montant moyen demandé', f'{montant_moy:,.0f} $', "Valeur moyenne des prêts"],
+        ['DTI moyen', f'{dti_moy:.1f}%', "Ratio endettement/revenu"],
+        ['Date du rapport', datetime.now().strftime('%d/%m/%Y %H:%M'), "Heure de génération"],
     ]
-    table_couverture = Table(donnees_couverture, colWidths=[8*cm, 6*cm])
+    table_couverture = Table(donnees_couverture, colWidths=[6*cm, 3*cm, 8*cm])
     table_couverture.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#12244A')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -1034,11 +1109,270 @@ def generer_rapport_pdf(df, inclure_graphiques=True):
         ('FONTSIZE', (0, 0), (-1, 0), 11),
         ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
         ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-        ('FONTSIZE', (0, 1), (-1, -1), 10),
+        ('FONTSIZE', (0, 1), (-1, -1), 9),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8FAFD')]),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
     ]))
     story.append(table_couverture)
     story.append(PageBreak())
+
+    # ========== PAGE 2 : OBJECTIF ET MÉTHODOLOGIE ==========
+    story.append(Paragraph("1. Objectif du Modèle", styles['TitreSection']))
+    story.append(Paragraph(
+        "CreditScore Pro est un système d'évaluation du risque de crédit basé sur l'apprentissage automatique. "
+        "Son objectif principal est de prédire la probabilité qu'un emprunteur fasse défaut sur son prêt, "
+        "permettant ainsi aux institutions financières de prendre des décisions éclairées et de minimiser les pertes.",
+        styles['CorpsTexte']
+    ))
+    story.append(Spacer(1, 0.3*cm))
+    
+    story.append(Paragraph("<b>Variables Clés Analysées :</b>", styles['CorpsTexte']))
+    variables = [
+        "• <b>Âge et Revenu</b> : Profil financier de base de l'emprunteur",
+        "• <b>Ancienneté professionnelle</b> : Stabilité de l'emploi et des revenus",
+        "• <b>Montant du prêt et Taux d'intérêt</b> : Caractéristiques du crédit demandé",
+        "• <b>Statut de logement</b> : Propriétaire, locataire ou hypothéqué",
+        "• <b>Objet du prêt</b> : Finalité (éducation, médical, personnel, etc.)",
+        "• <b>Historique de crédit</b> : Longueur et qualité de l'historique bancaire",
+        "• <b>Antécédents de défaut</b> : Événements passés de non-paiement",
+    ]
+    for var in variables:
+        story.append(Paragraph(var, styles['BulletPoint']))
+    
+    story.append(Spacer(1, 0.5*cm))
+    story.append(Paragraph("<b>Méthodologie :</b>", styles['CorpsTexte']))
+    story.append(Paragraph(
+        "Le modèle utilise un algorithme Random Forest entraîné sur des données historiques de crédit. "
+        "Il analyse les relations complexes entre les variables pour prédire la probabilité de défaut. "
+        "Les décisions sont classées en trois catégories : Favorable (< 20%), Modéré (20-40%), et "
+        "Défavorable (> 40%), avec des recommandations adaptées à chaque niveau de risque.",
+        styles['CorpsTexte']
+    ))
+    story.append(PageBreak())
+
+    # ========== PAGE 3 : GRAPHIQUES PRINCIPAUX ==========
+    story.append(Paragraph("2. Analyse Visuelle du Portefeuille", styles['TitreSection']))
+    
+    if inclure_graphiques:
+        graphiques = generer_graphiques_pdf(df)
+        
+        # Afficher les graphiques 2 par page
+        for i in range(0, len(graphiques), 2):
+            for j in range(2):
+                if i + j < len(graphiques):
+                    img_data, titre = graphiques[i + j]
+                    img = Image(io.BytesIO(img_data), width=15*cm, height=9*cm)
+                    story.append(img)
+                    story.append(Paragraph(f"Figure {i+j+1} : {titre}", styles['Caption']))
+                    story.append(Spacer(1, 0.3*cm))
+            
+            if i + 2 < len(graphiques):
+                story.append(PageBreak())
+                story.append(Paragraph("2. Analyse Visuelle du Portefeuille (suite)", styles['TitreSection']))
+
+    story.append(PageBreak())
+
+    # ========== PAGE 4 : ANALYSE DÉTAILLÉE ==========
+    story.append(Paragraph("3. Analyse Détaillée et Insights", styles['TitreSection']))
+    
+    # Analyse par objet de prêt
+    story.append(Paragraph("<b>3.1 Risque par Objet de Prêt</b>", styles['SousTitre']))
+    par_objet = df.groupby("objet").agg({
+        "proba_pct": "mean",
+        "montant": "mean",
+        "decision": lambda x: (x == "Favorable").sum() / len(x) * 100
+    }).sort_values("proba_pct")
+    
+    for objet in par_objet.index:
+        risque = par_objet.loc[objet, "proba_pct"]
+        montant = par_objet.loc[objet, "montant"]
+        taux_fav_obj = par_objet.loc[objet, "decision"]
+        couleur_risque_txt = "faible" if risque < 20 else ("modéré" if risque < 40 else "élevé")
+        
+        story.append(Paragraph(
+            f"<b>{objet}</b> : Risque moyen de {risque:.1f}% ({couleur_risque_txt}), "
+            f"montant moyen {montant:,.0f}$, taux d'acceptation {taux_fav_obj:.1f}%",
+            styles['CorpsTexte']
+        ))
+    
+    story.append(Spacer(1, 0.5*cm))
+    
+    # Analyse par statut de logement
+    story.append(Paragraph("<b>3.2 Risque par Statut de Logement</b>", styles['SousTitre']))
+    par_logement = df.groupby("logement").agg({
+        "proba_pct": "mean",
+        "montant": "mean"
+    }).sort_values("proba_pct")
+    
+    for logement in par_logement.index:
+        risque = par_logement.loc[logement, "proba_pct"]
+        montant = par_logement.loc[logement, "montant"]
+        
+        story.append(Paragraph(
+            f"<b>{logement}</b> : Risque moyen de {risque:.1f}%, montant moyen {montant:,.0f}$",
+            styles['CorpsTexte']
+        ))
+    
+    story.append(Spacer(1, 0.5*cm))
+    
+    # Corrélations importantes
+    story.append(Paragraph("<b>3.3 Corrélations Importantes</b>", styles['SousTitre']))
+    
+    if len(df) > 2:
+        corr_dti = df["dti"].corr(df["proba_defaut"])
+        corr_revenu = df["revenu"].corr(df["proba_defaut"])
+        corr_age = df["age"].corr(df["proba_defaut"])
+        
+        story.append(Paragraph(
+            f"• <b>DTI vs Risque</b> : corrélation de {corr_dti:.2f} — "
+            f"{'Forte' if abs(corr_dti) > 0.6 else 'Modérée' if abs(corr_dti) > 0.3 else 'Faible'} "
+            f"relation positive (plus le DTI est élevé, plus le risque augmente)",
+            styles['BulletPoint']
+        ))
+        story.append(Paragraph(
+            f"• <b>Revenu vs Risque</b> : corrélation de {corr_revenu:.2f} — "
+            f"{'Forte' if abs(corr_revenu) > 0.6 else 'Modérée' if abs(corr_revenu) > 0.3 else 'Faible'} "
+            f"relation (des revenus plus élevés tendent à réduire le risque)",
+            styles['BulletPoint']
+        ))
+        story.append(Paragraph(
+            f"• <b>Âge vs Risque</b> : corrélation de {corr_age:.2f} — "
+            f"{'Forte' if abs(corr_age) > 0.6 else 'Modérée' if abs(corr_age) > 0.3 else 'Faible'} "
+            f"relation",
+            styles['BulletPoint']
+        ))
+    
+    story.append(PageBreak())
+
+    # ========== PAGE 5 : RECOMMANDATIONS ==========
+    story.append(Paragraph("4. Recommandations Stratégiques", styles['TitreSection']))
+    
+    # Recommandations générales
+    story.append(Paragraph("<b>4.1 Recommandations Générales</b>", styles['SousTitre']))
+    
+    if taux_def > 30:
+        story.append(Paragraph(
+            "⚠️ <b>Alerte</b> : Le taux de refus dépasse 30%, indiquant un portefeuille à risque élevé. "
+            "Un ciblage plus strict en amont des demandes est recommandé.",
+            styles['InsightBox']
+        ))
+    elif taux_fav > 70:
+        story.append(Paragraph(
+            "✅ <b>Excellent</b> : Le portefeuille présente un profil globalement sain avec un taux "
+            "d'acceptation élevé. Maintenir les critères actuels.",
+            styles['InsightBox']
+        ))
+    
+    recommandations = [
+        "• <b>Pour les dossiers Favorables</b> : Accorder rapidement, proposer des services complémentaires, "
+        "fidéliser le client avec des offres privilégiées.",
+        "• <b>Pour les dossiers Modérés</b> : Exiger des garanties proportionnelles, majorer légèrement "
+        "le taux d'intérêt, recommander une assurance crédit.",
+        "• <b>Pour les dossiers Défavorables</b> : Refuser ou exiger des garanties substantielles, "
+        "proposer un montant réduit, recommander une amélioration de la situation financière.",
+    ]
+    for reco in recommandations:
+        story.append(Paragraph(reco, styles['BulletPoint']))
+    
+    story.append(Spacer(1, 0.5*cm))
+    
+    # Recommandations spécifiques
+    story.append(Paragraph("<b>4.2 Recommandations Spécifiques</b>", styles['SousTitre']))
+    
+    # Identifier les objets les plus risqués
+    if len(par_objet) > 0:
+        pire_objet = par_objet.index[-1]
+        meilleur_objet = par_objet.index[0]
+        
+        story.append(Paragraph(
+            f"• Les prêts <b>{pire_objet}</b> présentent le risque le plus élevé ({par_objet.iloc[-1]['proba_pct']:.1f}%). "
+            f"Renforcer les critères d'acceptation pour cette catégorie.",
+            styles['BulletPoint']
+        ))
+        story.append(Paragraph(
+            f"• Les prêts <b>{meilleur_objet}</b> sont les plus sûrs ({par_objet.iloc[0]['proba_pct']:.1f}%). "
+            f"Encourager ce type de demande avec des conditions avantageuses.",
+            styles['BulletPoint']
+        ))
+    
+    # DTI critique
+    if dti_moy > 35:
+        story.append(Paragraph(
+            f"• <b>Attention DTI</b> : Le DTI moyen de {dti_moy:.1f}% dépasse le seuil critique de 35%. "
+            "Mettre en place un contrôle automatique pour les demandes avec DTI > 40%.",
+            styles['BulletPoint']
+        ))
+    
+    story.append(PageBreak())
+
+    # ========== PAGE 6 : HISTORIQUE DÉTAILLÉ ==========
+    story.append(Paragraph("5. Historique Détaillé des Analyses", styles['TitreSection']))
+    story.append(Paragraph(
+        f"Tableau complet des {total} analyses enregistrées dans le système, triées par date décroissante.",
+        styles['CorpsTexte']
+    ))
+    story.append(Spacer(1, 0.3*cm))
+    
+    # Créer le tableau d'historique
+    df_hist = df.copy()
+    df_hist["Date"] = df_hist["date"].dt.strftime("%d/%m/%Y %H:%M")
+    df_hist["Âge"] = df_hist["age"].astype(int)
+    df_hist["Revenu"] = df_hist["revenu"].apply(lambda x: f"{x:,.0f}$")
+    df_hist["Prêt"] = df_hist["montant"].apply(lambda x: f"{x:,.0f}$")
+    df_hist["Risque"] = df_hist["proba_pct"].apply(lambda x: f"{x:.1f}%")
+    df_hist["Score"] = df_hist["score"].astype(int)
+    
+    colonnes = ["Date", "Âge", "Revenu", "Prêt", "Objet", "Logement", "Risque", "Score", "Décision"]
+    df_table = df_hist[colonnes].head(20)  # Limiter à 20 lignes pour la lisibilité
+    
+    donnees_table = [colonnes] + df_table.values.tolist()
+    table_hist = Table(donnees_table, colWidths=[2.2*cm, 1.2*cm, 2*cm, 2*cm, 2.5*cm, 2*cm, 1.5*cm, 1.3*cm, 2.3*cm])
+    table_hist.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#12244A')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 8),
+        ('FONTSIZE', (0, 1), (-1, -1), 7),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8FAFD')]),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    story.append(table_hist)
+    
+    if total > 20:
+        story.append(Paragraph(
+            f"<i>Tableau limité aux 20 analyses les plus récentes sur {total} au total.</i>",
+            styles['Note']
+        ))
+    
+    story.append(PageBreak())
+
+    # ========== PAGE 7 : CONCLUSION ==========
+    story.append(Paragraph("6. Conclusion", styles['TitreSection']))
+    story.append(Paragraph(
+        f"Le rapport analyse {total} dossiers de crédit avec une probabilité de défaut moyenne de "
+        f"{proba_moy:.1f}%. Le modèle CreditScore Pro identifie efficacement les profils à risque et "
+        "fournit des recommandations adaptées à chaque niveau de risque.",
+        styles['CorpsTexte']
+    ))
+    story.append(Spacer(1, 0.3*cm))
+    
+    story.append(Paragraph(
+        "Les analyses montrent que les variables les plus déterminantes sont le taux d'endettement (DTI), "
+        "le revenu annuel, et l'objet du prêt. Une surveillance continue et des ajustements périodiques "
+        "des seuils de décision permettront d'optimiser la performance du portefeuille.",
+        styles['CorpsTexte']
+    ))
+    story.append(Spacer(1, 0.5*cm))
+    
+    story.append(Paragraph(
+        f"<i>Rapport généré automatiquement par CreditScore Pro v4.0 le {datetime.now().strftime('%d/%m/%Y à %H:%M')}</i>",
+        styles['Note']
+    ))
+
+    # Build PDF
     doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
@@ -1078,12 +1412,11 @@ spark = get_spark()
 model = load_model_safe(spark)
 
 # --------------------------------------------------------------------
-# Sidebar (avec toggle dark/light en haut)
+# Sidebar
 # --------------------------------------------------------------------
 with st.sidebar:
     st.markdown("## 🏦 CreditScore Pro")
 
-    # ── THEME TOGGLE ──
     icon = "☀️" if THEME == "dark" else "🌙"
     label = "Mode Clair" if THEME == "dark" else "Mode Sombre"
     st.button(
@@ -1166,13 +1499,11 @@ def render_diagnostic():
         tone_dti = "red" if dti > 0.35 else "amber" if dti > 0.20 else "green"
         kpi_card("📈", "Taux d'endettement", f"{dti:.1%}", niveau_dti, tone_dti)
 
-        # Taux de couverture (revenu / prêt)
         coverage = (revenu / loan_amnt) if loan_amnt > 0 else 0
         tone_cov = "green" if coverage > 3 else "amber" if coverage > 1.5 else "red"
         kpi_card("🛡️", "Ratio couverture", f"{coverage:.1f}x",
                  "Revenu / Prêt", tone_cov)
 
-        # Score préliminaire heuristique
         score_prelim = max(0, min(100, int(
             100
             - (dti * 150)
@@ -1443,7 +1774,6 @@ def render_dashboard():
                 text=list(hist.values),
                 textposition="outside",
                 textfont=dict(color=C["text"], family="Sora"),
-                # ✅ hovertemplate se met sur la TRACE (go.Bar), PAS sur le layout
                 hovertemplate="<b>%{x}</b><br>%{y} dossier(s)<extra></extra>",
             ))
             afficher_fig(style_fig(fig, 320))
@@ -1468,15 +1798,15 @@ def render_dashboard():
                 x=act["date"].astype(str), y=act.n,
                 marker=dict(
                     color="rgba(46,109,180,.7)",
-                    line=dict(color=C["blue"], width=1.5), # ✅ Clé "blue" ajoutée
+                    line=dict(color=C["blue"], width=1.5),
                 ),
                 name="Analyses",
             ))
             fig.add_trace(go.Scatter(
                 x=act["date"].astype(str), y=act.n,
                 mode="lines+markers",
-                line=dict(color=C["gold"], width=2.5), # ✅ Clé "gold" ajoutée
-                marker=dict(size=8, color=C["gold"]),   # ✅ Clé "gold" ajoutée
+                line=dict(color=C["gold"], width=2.5),
+                marker=dict(size=8, color=C["gold"]),
                 name="Tendance",
             ))
             fig.update_layout(barmode="overlay", hovermode="x unified")
@@ -1569,12 +1899,11 @@ def render_dashboard():
     with c2:
         chart_title("🎭", "Profil moyen des dossiers", "Radar des caractéristiques")
         try:
-            # Normalisation des variables pour le radar
             age_norm = (df["age"].mean() - 18) / (80 - 18) * 100
             rev_norm = min(100, df["revenu"].mean() / 150_000 * 100)
             emp_norm = min(100, df["anciennete"].mean() / 20 * 100)
             cred_norm = min(100, df["hist_credit"].mean() / 20 * 100)
-            dti_norm = max(0, 100 - df["dti"].mean() * 100 * 2)  # inversé
+            dti_norm = max(0, 100 - df["dti"].mean() * 100 * 2)
             solv_norm = 100 - df["proba_pct"].mean()
 
             categories = ["Âge", "Revenu", "Ancienneté", "Hist. Crédit", "Solvabilité", "Faible DTI"]
@@ -1586,8 +1915,8 @@ def render_dashboard():
                 theta=categories + [categories[0]],
                 fill="toself",
                 fillcolor="rgba(212,175,55,.2)",
-                line=dict(color=C["gold"], width=2.5), # ✅ Clé "gold" ajoutée
-                marker=dict(size=8, color=C["gold"]),   # ✅ Clé "gold" ajoutée
+                line=dict(color=C["gold"], width=2.5),
+                marker=dict(size=8, color=C["gold"]),
                 name="Profil moyen",
             ))
             fig.update_layout(
